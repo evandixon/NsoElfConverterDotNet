@@ -11,7 +11,10 @@ namespace NsoElfConverterDotNet.ConsoleApp
         {
             if (args.Length < 2)
             {
-                Console.WriteLine("Usage: NsoElfConverterDotNet <main> <main.elf>");
+                Console.WriteLine("Usage:");
+                Console.WriteLine("NsoElfConverterDotNet <main> <main.elf>");
+                Console.WriteLine("or");
+                Console.WriteLine("NsoElfConverterDotNet <main.elf> <main>");
                 return;
             }
 
@@ -21,7 +24,18 @@ namespace NsoElfConverterDotNet.ConsoleApp
                 return;
             }
 
-            Nx2Elf.NsoToElf(args[0], args[1]);
+            INsoElfConverter converter = NsoElfConverter.Instance;
+
+            if (!Path.GetExtension(args[0]).Equals("elf", StringComparison.OrdinalIgnoreCase))
+            {
+                // NSO to ELF
+                converter.ConvertNsoToElf(args[0], args[1]);
+            }
+            else
+            {
+                // ELF to NSO
+                converter.ConvertElfToNso(args[0], args[1]);
+            }            
         }
     }
 }

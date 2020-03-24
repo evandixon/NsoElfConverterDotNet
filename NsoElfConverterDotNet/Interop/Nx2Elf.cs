@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace NsoElfConverterDotNet
+namespace NsoElfConverterDotNet.Interop
 {
     public static class Nx2Elf
     {
@@ -31,7 +31,7 @@ namespace NsoElfConverterDotNet
                         NativeLibrary.TryLoad("nx2elf-win-x86.dll", out libHandle);
                     }
                 }
-                else
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
                     if (Environment.Is64BitOperatingSystem)
                     {
@@ -42,35 +42,15 @@ namespace NsoElfConverterDotNet
                         NativeLibrary.TryLoad("nx2elf-linux-x86.so", out libHandle);
                     }
                 }
+                else
+                {
+                    throw new PlatformNotSupportedException("Only Windows and Linux are supported.");
+                }
             }
             return libHandle;
         }
 
         [DllImport(DllFile, EntryPoint = "NsoToElf")]
         public static extern bool NsoToElf(string path, string elf_file, bool verbose = false);
-
-        //public static bool NsoToElf(string input, string output)
-        //{
-        //    IntPtr path = IntPtr.Zero;
-        //    IntPtr elf_file = IntPtr.Zero;
-        //    try
-        //    {
-        //        path = Marshal.StringToHGlobalUni(input);
-        //        elf_file = Marshal.StringToHGlobalUni(output);
-
-        //        return NsoToElf(path, elf_file, false);
-        //    }
-        //    finally
-        //    {
-        //        if (path != IntPtr.Zero)
-        //        {
-        //            Marshal.FreeHGlobal(path);
-        //        }
-        //        if (elf_file != IntPtr.Zero)
-        //        {
-        //            Marshal.FreeHGlobal(elf_file);
-        //        }
-        //    }
-        //}
     }
 }

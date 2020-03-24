@@ -9,6 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="elf2nso" />
+    <None Remove="elf2nso.exe" />
     <None Remove="nx2elf-linux-x64.so" />
     <None Remove="nx2elf-linux-x86.so" />
     <None Remove="nx2elf-win-x64.dll" />
@@ -16,6 +18,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="elf2nso">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="elf2nso.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="nx2elf-linux-x64.so">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
