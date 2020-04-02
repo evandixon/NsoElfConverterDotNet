@@ -1,4 +1,4 @@
-﻿using LZ4;
+﻿using K4os.Compression.LZ4;
 using SkyEditor.IO.Binary;
 using System;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
             using var sha256 = SHA256.Create();
 
             var nsoHeader = new NsoHeader();
-            var compressedBuffer = new List<byte[]>(3);
+            var compressedBuffers = new List<byte[]>(3);
             uint fileOffset = NsoHeader.Length;
             int j = 0;
             for (int i = 0; i < 3; i++)
@@ -68,18 +68,19 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     nsoHeader.Segments[i].AlignOrTotalSz = 1;
                 }
 
-                var sectionData = elf.ReadArray((long)phdr.Offset, (int)phdr.FileSize);
-                nsoHeader.Hashes[i] = sha256.ComputeHash(sectionData);
+                var sectionData = elf.ReadSpan((long)phdr.Offset, (int)phdr.FileSize);
+                nsoHeader.Hashes[i] = sha256.ComputeHash(sectionData.ToArray());
 
-                var compressed = LZ4Codec.Encode(sectionData, 0, sectionData.Length);
-                compressedBuffer.Add(compressed);
-                nsoHeader.CompSz[i] = (uint)compressed.Length;
-                fileOffset += (uint)compressed.Length;
+                var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
+                var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L12_MAX);
+                compressedBuffers.Add(compressedBuffer);
+                nsoHeader.CompSz[i] = (uint)compressedLength;
+                fileOffset += (uint)compressedLength;
             }
 
             // Iterate over sections to find build id.
             var currentSectionHeaderOffset = header.ShOff;
-            for (int i = 0;i< header.SHNum;i++)
+            for (int i = 0; i < header.SHNum; i++)
             {
                 var currentShHeader = new Elf64Shdr(elf.Slice((long)currentSectionHeaderOffset, header.SHEntSize));
                 if (currentShHeader.Type == ElfConstants.SHT_NOTE)
@@ -103,11 +104,11 @@ namespace NsoElfConverterDotNet.Elf2Nso
             }
 
             var headerData = nsoHeader.ToByteArray();
-            var buffer = new List<byte>(headerData.Length + compressedBuffer.Sum(b => b.Length));
+            var buffer = new List<byte>(headerData.Length + nsoHeader.CompSz.Cast<int>().Sum());
             buffer.AddRange(headerData);
-            foreach (var section in compressedBuffer)
+            for (int i = 0; i < nsoHeader.CompSz.Length; i++)
             {
-                buffer.AddRange(section);
+                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.CompSz[i]));
             }
             return buffer.ToArray();
         }
