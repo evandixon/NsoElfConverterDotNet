@@ -72,7 +72,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 nsoHeader.Hashes[i] = sha256.ComputeHash(sectionData.ToArray());
 
                 var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
-                var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L12_MAX);
+                var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L00_FAST);
                 compressedBuffers.Add(compressedBuffer);
                 nsoHeader.CompSz[i] = (uint)compressedLength;
                 fileOffset += (uint)compressedLength;
