@@ -26,7 +26,7 @@ namespace NsoElfConverterDotNet.ConsoleApp
 
             INsoElfConverter converter = NsoElfConverter.Instance;
 
-            if (!Path.GetExtension(args[0]).Equals("elf", StringComparison.OrdinalIgnoreCase))
+            if (!Path.GetExtension(args[0]).TrimStart('.').Equals("elf", StringComparison.OrdinalIgnoreCase))
             {
                 // NSO to ELF
                 converter.ConvertNsoToElf(args[0], args[1]);
@@ -34,7 +34,7 @@ namespace NsoElfConverterDotNet.ConsoleApp
             else
             {
                 // ELF to NSO
-                converter.ConvertElfToNso(args[0], args[1]);
+                File.WriteAllBytes(args[1], converter.ConvertElfToNso(File.ReadAllBytes(args[0])));
             }            
         }
     }

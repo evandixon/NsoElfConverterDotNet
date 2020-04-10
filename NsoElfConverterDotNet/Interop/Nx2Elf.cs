@@ -7,7 +7,7 @@ using System.Text;
 
 namespace NsoElfConverterDotNet.Interop
 {
-    public static class Nx2Elf
+    internal static class Nx2Elf
     {
         private const string DllFile = "nx2elf";
 

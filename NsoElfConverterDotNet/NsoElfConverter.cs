@@ -1,4 +1,6 @@
-﻿using NsoElfConverterDotNet.Interop;
+﻿using NsoElfConverterDotNet.Elf2Nso;
+using NsoElfConverterDotNet.Interop;
+using SkyEditor.IO.Binary;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -32,23 +34,16 @@ namespace NsoElfConverterDotNet
         /// <summary>
         /// Converts an ELF file to an NSO file
         /// </summary>
-        /// <param name="elfFilename">Path of the source ELF file</param>
-        /// <param name="nsoFilename">Path of the target NSO file</param>
-        void ConvertElfToNso(string elfFilename, string nsoFilename);
-
-        /// <summary>
-        /// Converts an ELF file to an NSO file
-        /// </summary>
-        /// <param name="elfFilename">Path of the source ELF file</param>
+        /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
-        byte[] ConvertElfToNso(string elfFilename);
+        byte[] ConvertElfToNso(byte[] elfFile);
 
         /// <summary>
         /// Converts an ELF file to an NSO file
         /// </summary>
         /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
-        byte[] ConvertElfToNso(byte[] elfFile);
+        byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elfFile);
     }
 
     public class NsoElfConverter : INsoElfConverter
@@ -137,54 +132,12 @@ namespace NsoElfConverterDotNet
         /// <summary>
         /// Converts an ELF file to an NSO file
         /// </summary>
-        /// <param name="elfFilename">Path of the source ELF file</param>
-        /// <param name="nsoFilename">Path of the target NSO file</param>
-        public void ConvertElfToNso(string elfFilename, string nsoFilename)
-        {
-            if (string.IsNullOrEmpty(elfFilename))
-            {
-                throw new ArgumentNullException(nameof(elfFilename));
-            }
-            if (string.IsNullOrEmpty(nsoFilename))
-            {
-                throw new ArgumentNullException(nameof(nsoFilename));
-            }
-
-            if (ArePathsEqual(elfFilename, nsoFilename))
-            {
-                throw new ArgumentException("Target path cannot be equal to the source path", nameof(nsoFilename));
-            }
-
-            if (!File.Exists(elfFilename))
-            {
-                throw new FileNotFoundException("Source file does not exist", elfFilename);
-            }
-
-            Elf2Nso.RunElf2Nso(elfFilename, nsoFilename);
-
-            if (!File.Exists(nsoFilename))
-            {
-                throw new FileNotFoundException("Elf2Nso failed to create an NSO file.");
-            }
-        }
-
-        /// <summary>
-        /// Converts an ELF file to an NSO file
-        /// </summary>
-        /// <param name="elfFilename">Path of the source ELF file</param>
+        /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
-        public byte[] ConvertElfToNso(string elfFilename)
+        public byte[] ConvertElfToNso(byte[] elfFile)
         {
-            var nsoFilename = Path.GetTempFileName();
-            try
-            {
-                ConvertElfToNso(elfFilename, nsoFilename);
-                return File.ReadAllBytes(nsoFilename);
-            }
-            finally
-            {
-                File.Delete(nsoFilename);
-            }
+            using var binary = new BinaryFile(elfFile);
+            return ElfToNsoConverter.ConvertElfToNso(binary);
         }
 
         /// <summary>
@@ -192,21 +145,9 @@ namespace NsoElfConverterDotNet
         /// </summary>
         /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
-        public byte[] ConvertElfToNso(byte[] elfFile)
+        public byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elfFile)
         {
-            var elfFilename = Path.GetTempFileName();
-            var nsoFilename = Path.GetTempFileName();
-            try
-            {
-                File.WriteAllBytes(elfFilename, elfFile);
-                ConvertElfToNso(elfFilename, nsoFilename);
-                return File.ReadAllBytes(nsoFilename);
-            }
-            finally
-            {
-                File.Delete(elfFilename);
-                File.Delete(nsoFilename);
-            }
+            return ElfToNsoConverter.ConvertElfToNso(elfFile);
         }
 
         private static bool ArePathsEqual(string pathA, string pathB)

@@ -2,11 +2,20 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Authors>evandixon</Authors>
+    <Description>Converts Nintendo Switch executables to ELF and back</Description>
+    <RepositoryUrl>https://github.com/evandixon/NsoElfConverterDotNet</RepositoryUrl>
+    <Copyright>2020</Copyright>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="K4os.Compression.LZ4" Version="1.1.11" />
+    <PackageReference Include="SkyEditor.IO" Version="5.1.1" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Update="Properties\Resources.Designer.cs">
