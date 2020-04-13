@@ -83,6 +83,6 @@ namespace NsoElfConverterDotNet.Interop
         }
 
         [DllImport(DllFile, EntryPoint = "NsoToElf")]
-        public static extern bool NsoToElf(string path, string elf_file, bool verbose = false);
+        public static extern bool NsoToElf(string path, string elf_file, bool verbose = false, bool suppressConsoleWrites = false);
     }
 }
