@@ -80,7 +80,7 @@ namespace NsoElfConverterDotNet
                 throw new FileNotFoundException("Source file does not exist", nsoFilename);
             }
 
-            Nx2Elf.NsoToElf(nsoFilename, elfFilename, verbose: false, suppressConsoleWrites: true);
+            Nx2Elf.NsoToElf(nsoFilename, elfFilename);
 
             if (!File.Exists(elfFilename))
             {
