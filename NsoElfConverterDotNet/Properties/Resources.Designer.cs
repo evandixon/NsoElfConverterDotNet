@@ -63,9 +63,9 @@ namespace NsoElfConverterDotNet.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        internal static byte[] nx2elf_linux_x64 {
+        internal static byte[] libnx2elf_x64 {
             get {
-                object obj = ResourceManager.GetObject("nx2elf_linux_x64", resourceCulture);
+                object obj = ResourceManager.GetObject("libnx2elf_x64", resourceCulture);
                 return ((byte[])(obj));
             }
         }
@@ -73,9 +73,9 @@ namespace NsoElfConverterDotNet.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        internal static byte[] nx2elf_linux_x86 {
+        internal static byte[] libnx2elf_x86 {
             get {
-                object obj = ResourceManager.GetObject("nx2elf_linux_x86", resourceCulture);
+                object obj = ResourceManager.GetObject("libnx2elf_x86", resourceCulture);
                 return ((byte[])(obj));
             }
         }
@@ -83,9 +83,9 @@ namespace NsoElfConverterDotNet.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        internal static byte[] nx2elf_win_x64 {
+        internal static byte[] nx2elf_x64 {
             get {
-                object obj = ResourceManager.GetObject("nx2elf_win_x64", resourceCulture);
+                object obj = ResourceManager.GetObject("nx2elf_x64", resourceCulture);
                 return ((byte[])(obj));
             }
         }
@@ -93,9 +93,9 @@ namespace NsoElfConverterDotNet.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
-        internal static byte[] nx2elf_win_x86 {
+        internal static byte[] nx2elf_x86 {
             get {
-                object obj = ResourceManager.GetObject("nx2elf_win_x86", resourceCulture);
+                object obj = ResourceManager.GetObject("nx2elf_x86", resourceCulture);
                 return ((byte[])(obj));
             }
         }

@@ -33,16 +33,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Resources\nx2elf-linux-x64.so">
+    <None Update="Resources\libnx2elf-x64.so">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
-    <None Update="Resources\nx2elf-linux-x86.so">
+    <None Update="Resources\libnx2elf-x86.so">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
-    <None Update="Resources\nx2elf-win-x64.dll">
+    <None Update="Resources\nx2elf-x64.dll">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
-    <None Update="Resources\nx2elf-win-x86.dll">
+    <None Update="Resources\nx2elf-x86.dll">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>

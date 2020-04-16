@@ -9,10 +9,8 @@ namespace NsoElfConverterDotNet.Interop
 {
     internal static class Nx2Elf
     {
-        private const string DllFile = "nx2elf";
-
-        private const string nx2elf_linux_x64 = "nx2elf_linux_x64.so";
-        private const string nx2elf_linux_x86 = "nx2elf_linux_x86.so";
+        private const string nx2elf_linux_x64 = "libnx2elf_x64.so";
+        private const string nx2elf_linux_x86 = "libnx2elf_x86.so";
         private const string nx2elf_win_x64 = "nx2elf_win_x64.dll";
         private const string nx2elf_win_x86 = "nx2elf_win_x86.dll";
 
@@ -23,66 +21,68 @@ namespace NsoElfConverterDotNet.Interop
             var linuxX64Path = Path.Combine(path, nx2elf_linux_x64);
             if (!File.Exists(linuxX64Path))
             {
-                File.WriteAllBytes(linuxX64Path, Properties.Resources.nx2elf_linux_x64);
+                File.WriteAllBytes(linuxX64Path, Properties.Resources.libnx2elf_x64);
             }
 
             var linuxX86Path = Path.Combine(path, nx2elf_linux_x86);
             if (!File.Exists(linuxX86Path))
             {
-                File.WriteAllBytes(linuxX86Path, Properties.Resources.nx2elf_linux_x86);
+                File.WriteAllBytes(linuxX86Path, Properties.Resources.libnx2elf_x86);
             }
 
             var windowsX64Path = Path.Combine(path, nx2elf_win_x64);
             if (!File.Exists(windowsX64Path))
             {
-                File.WriteAllBytes(windowsX64Path, Properties.Resources.nx2elf_win_x64);
+                File.WriteAllBytes(windowsX64Path, Properties.Resources.nx2elf_x64);
             }
 
             var windowsX86Path = Path.Combine(path, nx2elf_win_x86);
             if (!File.Exists(windowsX86Path))
             {
-                File.WriteAllBytes(windowsX86Path, Properties.Resources.nx2elf_win_x86);
+                File.WriteAllBytes(windowsX86Path, Properties.Resources.nx2elf_x86);
             }
-
-            NativeLibrary.SetDllImportResolver(typeof(Nx2Elf).Assembly, ImportResolver);
         }
 
-        private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        [DllImport(nx2elf_win_x86, EntryPoint = "NsoToElf")]
+        private static extern bool WindowsNsoToElfX86(string path, string elf_file);
+
+        [DllImport(nx2elf_win_x64, EntryPoint = "NsoToElf")]
+        private static extern bool WindowsNsoToElfX64(string path, string elf_file);
+
+        [DllImport(nx2elf_linux_x86, EntryPoint = "NsoToElf")]
+        private static extern bool LinuxNsoToElfX86(string path, string elf_file);
+
+        [DllImport(nx2elf_linux_x64, EntryPoint = "NsoToElf")]
+        private static extern bool LinuxNsoToElfX64(string path, string elf_file);
+
+        public static bool NsoToElf(string path, string elf_file)
         {
-            IntPtr libHandle = IntPtr.Zero;
-            if (libraryName == DllFile)
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                if (Environment.Is64BitOperatingSystem)
                 {
-                    if (Environment.Is64BitOperatingSystem)
-                    {
-                        NativeLibrary.TryLoad(nx2elf_win_x64, out libHandle);
-                    }
-                    else
-                    {
-                        NativeLibrary.TryLoad(nx2elf_win_x86, out libHandle);
-                    }
-                }
-                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                {
-                    if (Environment.Is64BitOperatingSystem)
-                    {
-                        NativeLibrary.TryLoad(nx2elf_linux_x64, out libHandle);
-                    }
-                    else
-                    {
-                        NativeLibrary.TryLoad(nx2elf_linux_x86, out libHandle);
-                    }
+                    return WindowsNsoToElfX64(path, elf_file);
                 }
                 else
                 {
-                    throw new PlatformNotSupportedException("Only Windows and Linux are supported.");
+                    return WindowsNsoToElfX86(path, elf_file);
                 }
             }
-            return libHandle;
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (Environment.Is64BitOperatingSystem)
+                {
+                    return LinuxNsoToElfX64(path, elf_file);
+                }
+                else
+                {
+                    return WindowsNsoToElfX86(path, elf_file);
+                }
+            }
+            else
+            {
+                throw new PlatformNotSupportedException("Only Windows and Linux are supported.");
+            }
         }
-
-        [DllImport(DllFile, EntryPoint = "NsoToElf")]
-        public static extern bool NsoToElf(string path, string elf_file);
     }
 }
