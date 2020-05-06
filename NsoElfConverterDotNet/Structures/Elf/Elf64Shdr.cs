@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     public class Elf64Shdr
     {

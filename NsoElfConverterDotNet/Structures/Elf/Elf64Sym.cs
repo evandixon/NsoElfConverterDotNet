@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Text;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     public struct Elf64Sym
     {

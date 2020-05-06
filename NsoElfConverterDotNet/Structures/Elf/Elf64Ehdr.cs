@@ -1,9 +1,10 @@
 ﻿using SkyEditor.IO.Binary;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Text;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     // Copyright (c) 1996-1998 John D. Polstra.
     // All rights reserved.
@@ -62,6 +63,25 @@ namespace NsoElfConverterDotNet.Elf2Nso
             SHEntSize = data.ReadUInt16(index); index += 2;
             SHNum = data.ReadUInt16(index); index += 2;
             SHStrNdx = data.ReadUInt16(index); index += 2;
+        }
+
+        public void Write(Span<byte> data)
+        {
+            Ident.CopyTo(data);
+            var index = ElfConstants.EI_NIDENT;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), Type); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), Machine); index += 2;
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Version); index += 4;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Entry); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), PhOff); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), ShOff); index += 8;
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Flags); index += 4;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), EhSize); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), PHEntSize); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), PHNum); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), SHEntSize); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), SHNum); index += 2;
+            BinaryPrimitives.WriteUInt16LittleEndian(data.Slice(index), SHStrNdx); index += 2;
         }
 
         /// <summary>

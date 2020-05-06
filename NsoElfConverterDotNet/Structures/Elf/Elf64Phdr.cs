@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     // Copyright (c) 1996-1998 John D. Polstra.
     // All rights reserved.

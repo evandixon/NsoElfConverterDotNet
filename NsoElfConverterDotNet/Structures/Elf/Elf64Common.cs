@@ -1,9 +1,10 @@
 ﻿using SkyEditor.IO.Binary;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Text;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     // Copyright (c) 2000, 2001, 2008, 2011, David E. O'Brien
     // Copyright (c) 1998 John D. Polstra.
@@ -37,41 +38,6 @@ namespace NsoElfConverterDotNet.Elf2Nso
     //
     // ELF definitions that are independent of architecture or word size.
     //
-
-    /// <summary>
-    /// Note header.  The ".note" section contains an array of notes.  Each
-    /// begins with this header, aligned to a word boundary.  Immediately
-    /// following the note header is n_namesz bytes of name, padded to the
-    /// next word boundary.  Then comes n_descsz bytes of descriptor, again
-    /// padded to a word boundary.  The values of n_namesz and n_descsz do
-    /// not include the padding.
-    /// </summary>
-    public struct ElfNote
-    {
-        public const int Length = 12;
-
-        public ElfNote(IReadOnlyBinaryDataAccessor data)
-        {
-            NameSize = data.ReadUInt32(0);
-            DescriptorSize = data.ReadUInt32(4);
-            Type = data.ReadUInt32(8);
-        }
-
-        /// <summary>
-        /// Length of name
-        /// </summary>
-        public uint NameSize { get; set; }
-
-        /// <summary>
-        /// Length of descriptor
-        /// </summary>
-        public uint DescriptorSize { get; set; }
-
-        /// <summary>
-        /// Type of this note
-        /// </summary>
-        public uint Type { get; set; }
-    }
 
     /// <summary>
     /// The header for GNU-style hash sections.
@@ -1047,5 +1013,14 @@ namespace NsoElfConverterDotNet.Elf2Nso
         public const int R_X86_64_IRELATIVE = 37;
 
         public const int NT_GNU_BUILD_ID = 3;   /* Note type for .note.gnu.build-id */
+
+        /* Dynamic relocations */
+        public const int R_AARCH64_COPY = 1024;
+        public const int R_AARCH64_GLOB_DAT = 1025;    /* Create GOT entry.  */
+        public const int R_AARCH64_JUMP_SLOT = 1026;    /* Create PLT entry.  */
+        public const int R_AARCH64_RELATIVE = 1027;    /* Adjust by program base.  */
+        public const int R_AARCH64_TLS_TPREL64 = 1030;
+        public const int R_AARCH64_TLS_DTPREL32 = 1031;
+        public const int R_AARCH64_IRELATIVE = 1032;
     }
 }
