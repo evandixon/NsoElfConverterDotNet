@@ -1,4 +1,5 @@
 ﻿using K4os.Compression.LZ4;
+using NsoElfConverterDotNet.Structures;
 using SkyEditor.IO.Binary;
 using System;
 using System.Collections.Generic;
@@ -54,9 +55,9 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     throw new ArgumentException("Invalid ELF: expected 3 loadable phdrs", nameof(elf));
                 }
 
-                nsoHeader.Segments[i].FileOff = fileOffset;
-                nsoHeader.Segments[i].DstOff = (uint)phdr.VAddr;
-                nsoHeader.Segments[i].DecompSz = (uint)phdr.FileSize;
+                nsoHeader.Segments[i].FileOffset = fileOffset;
+                nsoHeader.Segments[i].MemoryOffset = (uint)phdr.VAddr;
+                nsoHeader.Segments[i].MemorySize = (uint)phdr.FileSize;
 
                 // for .data segment this field contains bss size
                 if (i == 2)
@@ -74,7 +75,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
                 var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L00_FAST);
                 compressedBuffers.Add(compressedBuffer);
-                nsoHeader.CompSz[i] = (uint)compressedLength;
+                nsoHeader.SegmentFileSIzes[i] = (uint)compressedLength;
                 fileOffset += (uint)compressedLength;
             }
 
@@ -104,91 +105,13 @@ namespace NsoElfConverterDotNet.Elf2Nso
             }
 
             var headerData = nsoHeader.ToByteArray();
-            var buffer = new List<byte>(headerData.Length + nsoHeader.CompSz.Cast<int>().Sum());
+            var buffer = new List<byte>(headerData.Length + nsoHeader.SegmentFileSIzes.Cast<int>().Sum());
             buffer.AddRange(headerData);
-            for (int i = 0; i < nsoHeader.CompSz.Length; i++)
+            for (int i = 0; i < nsoHeader.SegmentFileSIzes.Length; i++)
             {
-                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.CompSz[i]));
+                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.SegmentFileSIzes[i]));
             }
             return buffer.ToArray();
-        }
-
-        private struct NsoSegment
-        {
-            public uint FileOff { get; set; }
-            public uint DstOff { get; set; }
-            public uint DecompSz { get; set; }
-            public uint AlignOrTotalSz { get; set; }
-
-            public byte[] ToByteArray()
-            {
-                var buffer = new byte[0x10];
-                BitConverter.GetBytes(FileOff).CopyTo(buffer, 0);
-                BitConverter.GetBytes(DstOff).CopyTo(buffer, 4);
-                BitConverter.GetBytes(DecompSz).CopyTo(buffer, 8);
-                BitConverter.GetBytes(AlignOrTotalSz).CopyTo(buffer, 12);
-                return buffer;
-            }
-        }
-
-        private class NsoHeader
-        {
-            public const int Length = 0x10 + 0x30 + 0x20 + 12 + 0x24 + 16 + 3 * 0x20;
-
-            public NsoHeader()
-            {
-                Magic = Encoding.ASCII.GetBytes("NSO0");
-                Unk3 = 0x3f;
-                Segments = new NsoSegment[3];
-                BuildId = new byte[0x20];
-                CompSz = new uint[3];
-                Padding = new byte[0x24];
-
-                this.Hashes = new List<byte[]>
-                {
-                    new byte[0x20],
-                    new byte[0x20],
-                    new byte[0x20]
-                };
-            }
-
-            public byte[] ToByteArray()
-            {
-                var buffer = new List<byte>(Length);
-                buffer.AddRange(Magic);
-                buffer.AddRange(BitConverter.GetBytes(Unk1));
-                buffer.AddRange(BitConverter.GetBytes(Unk2));
-                buffer.AddRange(BitConverter.GetBytes(Unk3));
-                foreach (var segment in Segments)
-                {
-                    buffer.AddRange(segment.ToByteArray());
-                }
-                buffer.AddRange(BuildId);
-                foreach (var size in CompSz)
-                {
-                    buffer.AddRange(BitConverter.GetBytes(size));
-                }
-                buffer.AddRange(Padding);
-                buffer.AddRange(BitConverter.GetBytes(Unk4));
-                buffer.AddRange(BitConverter.GetBytes(Unk5));
-                foreach (var hash in Hashes)
-                {
-                    buffer.AddRange(hash);
-                }
-                return buffer.ToArray();
-            }
-
-            public byte[] Magic { get; } // Length: 4
-            public uint Unk1 { get; set; }
-            public uint Unk2 { get; set; }
-            public uint Unk3 { get; set; }
-            public NsoSegment[] Segments { get; set; } // Length: 3
-            public byte[] BuildId { get; set; } // Length: 0x20
-            public uint[] CompSz { get; set; } // Length: 3
-            public byte[] Padding { get; set; }
-            public ulong Unk4 { get; set; }
-            public ulong Unk5 { get; set; }
-            public IList<byte[]> Hashes { get; set; } // 3 sets of byte[] length 0x20
         }
     }
 }

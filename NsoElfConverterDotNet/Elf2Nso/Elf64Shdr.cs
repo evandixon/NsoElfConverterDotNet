@@ -9,6 +9,10 @@ namespace NsoElfConverterDotNet.Elf2Nso
     {
         public const int Length = 64;
 
+        public Elf64Shdr()
+        {
+        }
+
         public Elf64Shdr(IReadOnlyBinaryDataAccessor data)
         {
             var index = 0;

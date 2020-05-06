@@ -7,16 +7,16 @@ using System.Text;
 
 namespace NsoElfConverterDotNet.Interop
 {
-    internal static class Nx2Elf
+    internal static class Nx2ElfInterop
     {
         private const string nx2elf_linux_x64 = "libnx2elf_x64.so";
         private const string nx2elf_linux_x86 = "libnx2elf_x86.so";
         private const string nx2elf_win_x64 = "nx2elf_win_x64.dll";
         private const string nx2elf_win_x86 = "nx2elf_win_x86.dll";
 
-        static Nx2Elf()
+        static Nx2ElfInterop()
         {
-            var path = Path.GetDirectoryName(typeof(Nx2Elf).Assembly.Location);
+            var path = Path.GetDirectoryName(typeof(Nx2ElfInterop).Assembly.Location);
 
             var linuxX64Path = Path.Combine(path, nx2elf_linux_x64);
             if (!File.Exists(linuxX64Path))
