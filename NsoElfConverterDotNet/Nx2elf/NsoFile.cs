@@ -500,12 +500,33 @@ namespace NsoElfConverterDotNet.Nx2elf
             ehdr.SHEntSize = Elf64Shdr.Length;
             ehdr.SHNum = numShdrs;
             ehdr.SHStrNdx = ElfConstants.SHN_UNDEF;
-            ehdr.Write(elf);
 
             // IDA only _needs_ phdrs and dynamic phdr to give good results
+            var phdrsStart = elf.AsSpan().Slice((int)ehdr.PhOff);
+            var phdrs = new Elf64Phdr();
 
+            ulong vaddr_to_foffset(ulong vaddr) 
+            {
+                var phdrsStart = elf.AsSpan().Slice((int)ehdr.PhOff);
+                for (int i = 0; i < 3; i++)
+                {
+                    var phdr = new Elf64Phdr(phdrsStart.Slice(i * Elf64Phdr.Length));
+                    if (vaddr >= phdr.VAddr && vaddr < phdr.VAddr + phdr.FileSize)
+                    {
+                        return phdr.Offset + (vaddr - phdr.VAddr);
+                    }
+                }
+                return 0;
+            };
+
+            shstrtab.Offset = (int)ehdr.ShOff + (int)ehdr.SHEntSize * (int)ehdr.SHNum;
+            shstrtab.Buffer.CopyTo(elf.AsSpan().Slice(shstrtab.Offset));
+
+            var data_offset_cur = shstrtab.Offset + shstrtab.Size;
             throw new NotImplementedException();
 
+            ehdr.Write(elf);
+            phdrs.Write(elf.AsSpan().Slice((int)ehdr.PhOff));
             return elf;
         }
 
@@ -600,6 +621,7 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             public byte[] Buffer { get; private set; }
             public int Size { get => Buffer.Length; }
+            public int Offset { get; set; }
 
             private uint Watermark { get; set; }
 
