@@ -129,8 +129,7 @@ namespace NsoElfConverterDotNet.Structures.Elf
 
             uint dw_fde_len(ReadOnlySpan<byte> image, int offset)
             {
-                var len = BinaryPrimitives.ReadUInt32LittleEndian(image.Slice(bufferPtr));
-                bufferPtr += 4;
+                var len = BinaryPrimitives.ReadUInt32LittleEndian(image.Slice(offset));
                 if (len == 0xffffffff)
                 {
                     throw new Exception("Reading fde failed");
@@ -144,13 +143,14 @@ namespace NsoElfConverterDotNet.Structures.Elf
             uint maxPtr = 0;
             for (int i = 0; i < fdeCount; i++)
             {
+                dw_decode(image, header.table_enc); // "func"
                 var desc = dw_decode(image, header.table_enc);
                 uint fdeLen = dw_fde_len(image, (int)desc);
                 maxPtr = Math.Max(maxPtr, desc + fdeLen);
             }
             if (maxPtr != 0)
             {
-                ehFrameLength = maxPtr;
+                ehFrameLength = maxPtr - ehFramePtr;
             }
             else
             {

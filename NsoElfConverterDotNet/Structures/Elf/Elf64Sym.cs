@@ -13,11 +13,11 @@ namespace NsoElfConverterDotNet.Structures.Elf
         public Elf64Sym(ReadOnlySpan<byte> data)
         {
             Name = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(0, 4));
-            Info = data[5];
-            Other = data[6];
-            Shndx = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(7, 2));
-            Value = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(9, 8));
-            Size = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(17, 8));
+            Info = data[4];
+            Other = data[5];
+            Shndx = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(6, 2));
+            Value = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(8, 8));
+            Size = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(16, 8));
         }
 
         public uint Name { get; set; }

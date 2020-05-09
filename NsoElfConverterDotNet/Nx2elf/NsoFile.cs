@@ -53,8 +53,8 @@ namespace NsoElfConverterDotNet.Nx2elf
             var mod = new ModHeader(modBase);
 
             DynInfo = new DynInfoData();
-            DynOffset = mod.dynamic_offset;
-            var dynamic = new Elf64Dyn(modBase.Slice(DynOffset));
+            DynOffset = modBaseRaw + mod.dynamic_offset;
+            var dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset));
             var dynamicIndex = 0;
             while (dynamic.Tag != default)
             {
@@ -111,7 +111,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
 
                 dynamicIndex += 1;
-                dynamic = new Elf64Dyn(modBase.Slice(DynOffset + dynamicIndex * Elf64Dyn.Length));
+                dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset + dynamicIndex * Elf64Dyn.Length));
             }
 
             // Resolve Plt
@@ -127,9 +127,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                     0x10, 0x42, 0x14, 0x91,
 
                     0x20, 0x02, 0x1f, 0xd6,
-                    0x1f, 0x20, 0x32, 0x50,
-                    0x1f, 0x20, 0x32, 0x50,
-                    0x1f, 0x20, 0x32, 0x50
+                    0x1f, 0x20, 0x03, 0xd5,
+                    0x1f, 0x20, 0x03, 0xd5,
+                    0x1f, 0x20, 0x03, 0xd5
                 };
                 var pltMask = new byte[]
                 {
@@ -143,9 +143,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                     0xff, 0xff, 0xff, 0xff
                 };
                 var found = memmem_m(textSegmentData, textSegmentData.Length, pltPattern, pltMask, pltPattern.Length);
-                if (found != 0)
+                if (found > -1)
                 {
-                    PltInfoAddr = (ulong)found;
+                    PltInfoAddr = (ulong)found + textSegment.MemoryOffset;
                     // Assume the plt exactly matches .rela.plt
                     var pltEntryCount = DynInfo.pltrelsz / Elf64Rela.Length;
                     const int pltEntrySize = 16;
@@ -204,7 +204,7 @@ namespace NsoElfConverterDotNet.Nx2elf
         {
             for (uint i = 0; i < Header.dynsym.Size / Elf64Sym.Length; i++)
             {
-                var sym = new Elf64Sym(Image.AsSpan().Slice((int)DynInfo.symtab));
+                var sym = new Elf64Sym(Image.AsSpan().Slice((int)DynInfo.symtab + Elf64Sym.Length * (int)i));
                 action(sym, i);
             }
         }
@@ -269,15 +269,15 @@ namespace NsoElfConverterDotNet.Nx2elf
                 return shdr;
             }
 
-            IterateDynamic((sym, _) =>
+            IterateDynamic((sym, i) =>
             {
                 if (sym.Shndx >= ElfConstants.SHN_LORESERVE)
                 {
                     return;
                 }
 
-                numShdrs = (ushort)Math.Max(numShdrs, sym.Value);
-                if (sym.Shndx != ElfConstants.SHT_NULL && knownSections.Count(kv => kv.Key == sym.Shndx) != 0)
+                numShdrs = (ushort)Math.Max(numShdrs, sym.Shndx);
+                if (sym.Shndx != ElfConstants.SHT_NULL && knownSections.Count(kv => kv.Key == sym.Shndx) == 0)
                 {
                     var shdr = vaddrToShdr(sym.Value);
                     if (shdr.Type != ElfConstants.SHT_NULL)
@@ -297,7 +297,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             {
                 ushort nextFree(ushort start)
                 {
-                    for (ushort i = 0; i < ElfConstants.SHN_LORESERVE; i++)
+                    for (ushort i = (ushort)(start + 1); i < ElfConstants.SHN_LORESERVE; i++)
                     {
                         if (!knownSections.ContainsKey(i))
                         {
@@ -308,22 +308,22 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
 
                 var shndx = nextFree(ElfConstants.SHN_UNDEF);
-                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".text") != 0 && Header.Segments[(int)NsoSegmentType.Text].MemoryOffset > 0)
+                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".text") == 0 && Header.Segments[(int)NsoSegmentType.Text].MemorySize > 0)
                 {
                     knownSections[shndx] = vaddrToShdr(Header.Segments[(int)NsoSegmentType.Text].MemoryOffset);
                     shndx = nextFree(shndx);
                 }
-                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".rodata") != 0 && Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset > 0)
+                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".rodata") == 0 && Header.Segments[(int)NsoSegmentType.Rodata].MemorySize > 0)
                 {
                     knownSections[shndx] = vaddrToShdr(Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset);
                     shndx = nextFree(shndx);
                 }
-                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".data") != 0 && Header.Segments[(int)NsoSegmentType.Data].MemoryOffset > 0)
+                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".data") == 0 && Header.Segments[(int)NsoSegmentType.Data].MemorySize > 0)
                 {
                     knownSections[shndx] = vaddrToShdr(Header.Segments[(int)NsoSegmentType.Data].MemoryOffset);
                     shndx = nextFree(shndx);
                 }
-                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".bss") != 0 && Header.Segments[(int)NsoSegmentType.Data].AlignOrTotalSz > 0)
+                if (shndx != ElfConstants.SHN_UNDEF && shstrtab.GetOffset(".bss") == 0 && Header.Segments[(int)NsoSegmentType.Data].AlignOrTotalSz > 0)
                 {
                     knownSections[shndx] = vaddrToShdr(Header.Segments[(int)NsoSegmentType.Data].MemoryOffset + Header.Segments[(int)NsoSegmentType.Data].MemorySize);
                     shndx = nextFree(shndx);
@@ -377,7 +377,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 for (ulong i = 0; i < DynInfo.pltrelsz / Elf64Rela.Length; i++)
                 {
                     var rela = new Elf64Rela(Image.AsSpan().Slice((int)(DynInfo.jmprel + i * Elf64Rela.Length)));
-                    if (rela.Info == ElfConstants.R_AARCH64_JUMP_SLOT)
+                    if ((uint)rela.Info == ElfConstants.R_AARCH64_JUMP_SLOT)
                     {
                         jumpSlotAddrEnd = Math.Max(jumpSlotAddrEnd, (int)(rela.Offset + 8));
                     }
@@ -390,9 +390,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             {
                 var gotDynamicPtr = BitConverter.GetBytes((ulong)DynOffset);
                 var found = memmem(Image.AsSpan().Slice(jumpSlotAddrEnd), Image.Length - jumpSlotAddrEnd, gotDynamicPtr, gotDynamicPtr.Length);
-                if (found != 0)
+                if (found > -1)
                 {
-                    gotAddr = found;
+                    gotAddr = found + jumpSlotAddrEnd;
                 }
             }
 
@@ -410,7 +410,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 var initPtr = Image.AsSpan().Slice((int)DynInfo.init);
                 for (int i = 0; /* no max */ ; i++)
                 {
-                    if (BinaryPrimitives.ReadUInt32LittleEndian(initPtr.Slice(i)) == 0xd65f03c0ul)
+                    if (BinaryPrimitives.ReadUInt32LittleEndian(initPtr.Slice(i * 4)) == 0xd65f03c0ul)
                     {
                         initRetOffset = (i + 1) * 4;
                         break;
@@ -425,7 +425,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 var finiPtr = Image.AsSpan().Slice((int)DynInfo.fini);
                 for (int i = 0; i < 0x20; i++)
                 {
-                    if ((BinaryPrimitives.ReadUInt32LittleEndian(finiPtr.Slice(i)) & 0xff000000ul) == 0x14000000ul)
+                    if ((BinaryPrimitives.ReadUInt32LittleEndian(finiPtr.Slice(i * 4)) & 0xff000000ul) == 0x14000000ul)
                     {
                         finiBranchOffset = (i + 1) * 4;
                         break;
@@ -440,9 +440,8 @@ namespace NsoElfConverterDotNet.Nx2elf
             uint ehInfoHdrSize = 0;
 
             uint ehFramePtr;
-            if (ElfEHInfo.MeasureFrame(Image, EhInfoHdrAddr, out ehFramePtr, out ehInfoFrameSize))
+            if (ElfEHInfo.MeasureFrame(Image, EhInfoHdrAddr, out ehInfoFrameAddr, out ehInfoFrameSize))
             {
-                ehInfoFrameAddr = (uint)(EhInfoHdrAddr + ehFramePtr);
                 // XXX the alignment of sizes is a fudge...
                 ehInfoHdrSize = (uint)ALIGN_UP(this.EhInfoHdrSize, 0x10);
                 ehInfoFrameSize = (uint)ALIGN_UP(ehInfoFrameSize, 0x10);
@@ -493,13 +492,13 @@ namespace NsoElfConverterDotNet.Nx2elf
             ehdr.Type = ElfConstants.ET_DYN; // ET_DYN
             ehdr.Machine = ElfConstants.EM_AARCH64;
             ehdr.Version = ElfConstants.EV_CURRENT;
-            ehdr.EhSize = Elf64Dyn.Length;
+            ehdr.EhSize = Elf64Ehdr.Length;
             ehdr.Flags = 0;
             ehdr.Entry = Header.Segments[(int)NsoSegmentType.Text].MemoryOffset;
             ehdr.PhOff = ehdr.EhSize;
             ehdr.PHEntSize = Elf64Phdr.Length;
             ehdr.PHNum = (ushort)numPhdrs;
-            ehdr.ShOff = ehdr.PhOff + ehdr.PHEntSize + ehdr.PHNum;
+            ehdr.ShOff = ehdr.PhOff + (ulong)ehdr.PHEntSize * ehdr.PHNum;
             ehdr.SHEntSize = Elf64Shdr.Length;
             ehdr.SHNum = numShdrs;
             ehdr.SHStrNdx = ElfConstants.SHN_UNDEF;
@@ -976,7 +975,6 @@ namespace NsoElfConverterDotNet.Nx2elf
             }
 
             ehdr.Write(elf);
-            phdrs.Write(elf.AsSpan().Slice((int)ehdr.PhOff));
             return elf;
         }
 
@@ -985,7 +983,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             var x = 0;
             while (length-- > 0 && x == 0)
             {
-                x = (a[0] & b[0]) & mask[0];
+                x = (a[0] ^ b[0]) & mask[0];
                 a = a.Slice(1);
                 b = b.Slice(1);
                 mask = mask.Slice(1);
@@ -998,7 +996,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             var x = 0;
             while (length-- > 0 && x == 0)
             {
-                x = (a[0] & b[0]);
+                x = (a[0] ^ b[0]);
                 a = a.Slice(1);
                 b = b.Slice(1);
             }
@@ -1007,19 +1005,18 @@ namespace NsoElfConverterDotNet.Nx2elf
 
         private static int memmem_m(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, ReadOnlySpan<byte> mask, int needleLength)
         {
-            var p = haystack;
             var currentOffset = 0;
             var maxOffset = haystackLength - needleLength;
-            while (currentOffset < maxOffset)
+            while (currentOffset <= maxOffset)
             {
+                var p = haystack.Slice(currentOffset);
                 if (memcmp_m(p, needle, mask, needleLength) == 0)
                 {
                     return currentOffset;
                 }
                 currentOffset += 1;
-                p = p.Slice(1);
             }
-            return 0;
+            return -1;
         }
 
         private static int memmem(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
@@ -1027,7 +1024,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             var p = haystack;
             var currentOffset = 0;
             var maxOffset = haystackLength - needleLength;
-            while (currentOffset < maxOffset)
+            while (currentOffset <= maxOffset)
             {
                 if (memcmp(p, needle, needleLength) == 0)
                 {
@@ -1036,22 +1033,21 @@ namespace NsoElfConverterDotNet.Nx2elf
                 currentOffset += 1;
                 p = p.Slice(1);
             }
-            return 0;
+            return -1;
         }
 
         private static int memmemr(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
         {
             var currentOffset = haystackLength - needleLength;
-            var p = haystack.Slice(currentOffset);
             var minOffset = 0;
             while (currentOffset >= minOffset)
             {
+                var p = haystack.Slice(currentOffset);
                 if (memcmp(p, needle, needleLength) == 0)
                 {
                     return currentOffset;
                 }
                 currentOffset -= 1;
-                p = haystack.Slice(currentOffset);
             }
             return 0;
         }
