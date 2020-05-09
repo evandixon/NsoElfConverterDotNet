@@ -173,7 +173,8 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
             }
 
-            int mod_get_offset(ReadOnlySpan<byte> modBase, int relative_offset) {
+            int mod_get_offset(ReadOnlySpan<byte> modBase, int relative_offset)
+            {
                 var ptr = modBase.Slice(relative_offset);
                 return BinaryPrimitives.ReadInt32LittleEndian(ptr);
             };
@@ -505,12 +506,13 @@ namespace NsoElfConverterDotNet.Nx2elf
             var phdrsStart = elf.AsSpan().Slice((int)ehdr.PhOff);
             var phdrs = new Elf64Phdr();
 
-            ulong vaddr_to_foffset(ulong vaddr) 
+            ulong vaddr_to_foffset(ulong vaddr)
             {
                 var phdrsStart = elf.AsSpan().Slice((int)ehdr.PhOff);
                 for (int i = 0; i < 3; i++)
                 {
-                    var phdr = new Elf64Phdr(phdrsStart.Slice(i * Elf64Phdr.Length));
+                    var phdrStart = phdrsStart.Slice(i * Elf64Phdr.Length);
+                    var phdr = new Elf64Phdr(phdrStart);
                     if (vaddr >= phdr.VAddr && vaddr < phdr.VAddr + phdr.FileSize)
                     {
                         return phdr.Offset + (vaddr - phdr.VAddr);
@@ -523,7 +525,463 @@ namespace NsoElfConverterDotNet.Nx2elf
             shstrtab.Buffer.CopyTo(elf.AsSpan().Slice(shstrtab.Offset));
 
             var data_offset_cur = shstrtab.Offset + shstrtab.Size;
-            throw new NotImplementedException();
+            for (var i = 0; i < numPhdrs; i++)
+            {
+                var phdrStart = phdrsStart.Slice(i * Elf64Phdr.Length);
+                var phdr = new Elf64Phdr();
+                if (i < 3)
+                {
+                    var seg = Header.Segments[i];
+                    phdr.Type = ElfConstants.PT_LOAD;
+                    switch (i)
+                    {
+                        case (int)NsoSegmentType.Text: phdr.Flags = ElfConstants.PF_R | ElfConstants.PF_X; break;
+                        case (int)NsoSegmentType.Rodata: phdr.Flags = ElfConstants.PF_R; break;
+                        case (int)NsoSegmentType.Data: phdr.Flags = ElfConstants.PF_R | ElfConstants.PF_W; break;
+                    }
+                    phdr.VAddr = phdr.PAddr = seg.MemoryOffset;
+                    phdr.Offset = (ulong)data_offset_cur;
+                    phdr.FileSize = seg.MemorySize;
+                    if (i == (int)NsoSegmentType.Data)
+                    {
+                        phdr.MemSize = seg.MemorySize + seg.AlignOrTotalSz;
+                        phdr.Align = 1;
+                    }
+                    else
+                    {
+                        phdr.MemSize = seg.MemorySize;
+                        phdr.Align = seg.AlignOrTotalSz;
+                    }
+
+                    phdr.Write(elf.AsSpan().Slice((int)phdr.Offset));
+
+                    // fixup sh_offset
+                    foreach (var known_section in knownSections)
+                    {
+                        if (known_section.Value.Addr == phdr.VAddr)
+                        {
+                            known_section.Value.Offset = phdr.Offset;
+                        }
+                    }
+
+                    data_offset_cur += (int)phdr.FileSize;
+                }
+                else if (i == (int)NsoSegmentType.Data + 1)
+                {
+                    phdr.Type = ElfConstants.PT_DYNAMIC;
+                    phdr.Flags = ElfConstants.PF_R | ElfConstants.PF_W;
+                    phdr.VAddr = phdr.PAddr = (ulong)DynOffset;
+                    phdr.Offset = vaddr_to_foffset(phdr.VAddr);
+                    var dyn_size = Elf64Dyn.Length;
+
+                    var dynOffset = this.DynOffset;
+                    var dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset));
+                    while (dynamic.Tag != 0)
+                    {
+                        dyn_size += Elf64Dyn.Length;
+                        dynOffset += Elf64Dyn.Length;
+                        dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset));
+                    }
+                    phdr.FileSize = phdr.MemSize = (ulong)dyn_size;
+                    phdr.Align = 8;
+                }
+                else if (i == (int)NsoSegmentType.Data + 2)
+                {
+                    // Too bad ida doesn't fucking use it!
+                    phdr.Type = ElfConstants.PT_GNU_EH_FRAME;
+                    phdr.Flags = ElfConstants.PF_R;
+                    phdr.VAddr = phdr.PAddr = (ulong)EhInfoHdrAddr;
+                    phdr.Offset = vaddr_to_foffset(phdr.VAddr);
+                    phdr.FileSize = phdr.MemSize = (ulong)EhInfoHdrSize;
+                    phdr.Align = 4;
+                }
+                phdr.Write(phdrStart);
+            }
+
+            // IDA's elf loader will also look for certain sections...
+            // IMO this is IDA bug - it should just use PT_DYNAMIC
+            // At least on 6.95, IDA will do a decent job if only PT_DYNAMIC is
+            // there, but once SHT_DYNAMIC is added, then many entries which would
+            // otherwise work fine by being only in the dynamic section, must also
+            // have section headers...
+            var shdrsStart = elf.AsSpan().Slice((int)ehdr.ShOff);
+            var shdrs = new Elf64Shdr();
+            // Insert sections for which section index was known
+            //for (auto & known_section : known_sections)
+            //{
+            //    auto shdr = &shdrs[known_section.first];
+            //    *shdr = known_section.second;
+            //}
+            // Insert other handy sections at an available section index
+            uint insert_shdr(Span<byte> shdrsStart, Elf64Shdr shdr, bool ordered = false)
+            {
+                uint start = 1;
+                // This is basically a hack to convince ida not to delete segments
+                if (ordered)
+                {
+                    foreach (var known_section in knownSections)
+                    {
+                        var known_shdr = known_section.Value;
+                        if (shdr.Addr >= known_shdr.Addr &&
+                            shdr.Addr < known_shdr.Addr + known_shdr.Size)
+                        {
+                            start = (uint)known_section.Key + 1;
+                        }
+                    }
+                }
+                retry:
+                for (var i = start; i < numShdrs; i++)
+                {
+                    var currentShdrStart = shdrsStart.Slice((int)i * Elf64Shdr.Length);
+                    var currentShdr = new Elf64Shdr();
+                    if (currentShdr.Type == ElfConstants.SHT_NULL)
+                    {
+                        shdr.Write(currentShdrStart);
+                        return i;
+                    }
+                }
+                // failed to find open spot with restrictions, so try again at any location
+                if (ordered && start != 1)
+                {
+                    Console.Error.WriteLine("warning: failed to meet ordering for sh_addr " + shdr.Addr.ToString("X"));
+                    start = 1;
+                    goto retry;
+                }
+                return ElfConstants.SHN_UNDEF;
+            };
+
+            Elf64Shdr shdr;
+            if (present_init)
+            {
+                shdr = new Elf64Shdr();
+                shdr.Name = shstrtab.GetOffset(".init");
+                shdr.Type = ElfConstants.SHT_PROGBITS;
+                shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_EXECINSTR;
+                shdr.Addr = DynInfo.init;
+                shdr.Offset = vaddr_to_foffset(shdr.Addr);
+                shdr.Size = (ulong)initRetOffset;
+                shdr.AddrAlign = 4;
+                if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
+                {
+                    throw new Exception("failed to insert new shdr for .init");
+                }
+            }
+
+            if (present_fini)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".fini");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+                shdr.sh_addr = dyn_info.fini;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = fini_branch_offset;
+                shdr.sh_addralign = sizeof(u32);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .fini", stderr);
+                }
+            }
+
+            shdr = new Elf64Shdr();
+            shdr.sh_name = shstrtab.GetOffset(".dynstr");
+            shdr.sh_type = SHT_STRTAB;
+            shdr.sh_flags = SHF_ALLOC;
+            shdr.sh_addr = header.segments[kRodata].mem_offset + header.dynstr.offset;
+            shdr.sh_offset = phdrs[kRodata].p_offset + header.dynstr.offset;
+            shdr.sh_size = header.dynstr.size;
+            shdr.sh_addralign = sizeof(char);
+            u32 dynstr_shndx = insert_shdr(shdr);
+            if (dynstr_shndx == SHN_UNDEF)
+            {
+                fputs("failed to insert new shdr for .dynstr", stderr);
+            }
+
+            u32 last_local_dynsym_index = 0;
+            iter_dynsym([&](const Elf64_Sym&sym, u32 index) {
+                if (ELF64_ST_BIND(sym.st_info) == STB_LOCAL)
+                {
+                    last_local_dynsym_index = std::max(last_local_dynsym_index, index);
+                }
+            });
+            shdr = new Elf64Shdr();
+            shdr.sh_name = shstrtab.GetOffset(".dynsym");
+            shdr.sh_type = SHT_DYNSYM;
+            shdr.sh_flags = SHF_ALLOC;
+            shdr.sh_addr = header.segments[kRodata].mem_offset + header.dynsym.offset;
+            shdr.sh_offset = phdrs[kRodata].p_offset + header.dynsym.offset;
+            shdr.sh_size = header.dynsym.size;
+            shdr.sh_link = dynstr_shndx;
+            shdr.sh_info = last_local_dynsym_index + 1;
+            shdr.sh_addralign = sizeof(u64);
+            shdr.sh_entsize = sizeof(Elf64_Sym);
+            u32 dynsym_shndx = insert_shdr(shdr);
+            if (dynsym_shndx == SHN_UNDEF)
+            {
+                fputs("failed to insert new shdr for .dynsym", stderr);
+            }
+
+            auto dyn_phdr = &phdrs[kData + 1];
+            shdr = new Elf64Shdr();
+            shdr.sh_name = shstrtab.GetOffset(".dynamic");
+            shdr.sh_type = SHT_DYNAMIC;
+            shdr.sh_flags = SHF_ALLOC | SHF_WRITE;
+            shdr.sh_addr = dyn_phdr->p_vaddr;
+            shdr.sh_offset = dyn_phdr->p_offset;
+            shdr.sh_size = dyn_phdr->p_filesz;
+            shdr.sh_link = dynstr_shndx;
+            shdr.sh_addralign = dyn_phdr->p_align;
+            shdr.sh_entsize = sizeof(Elf64_Dyn);
+            if (insert_shdr(shdr) == SHN_UNDEF)
+            {
+                fputs("failed to insert new shdr for .dynamic", stderr);
+            }
+
+            shdr = new Elf64Shdr();
+            shdr.sh_name = shstrtab.GetOffset(".rela.dyn");
+            shdr.sh_type = SHT_RELA;
+            shdr.sh_flags = SHF_ALLOC;
+            shdr.sh_addr = dyn_info.rela;
+            shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+            shdr.sh_size = dyn_info.relasz;
+            shdr.sh_link = dynsym_shndx;
+            shdr.sh_addralign = sizeof(u64);
+            shdr.sh_entsize = sizeof(Elf64_Rela);
+            if (insert_shdr(shdr) == SHN_UNDEF)
+            {
+                fputs("failed to insert new shdr for .rela.dyn", stderr);
+            }
+
+            u32 plt_shndx = SHN_UNDEF;
+            if (present.plt)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".plt");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+                shdr.sh_addr = plt_info.addr;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = plt_info.size;
+                shdr.sh_addralign = 0x10;
+                shdr.sh_entsize = 0x10;
+                plt_shndx = insert_shdr(shdr, true);
+                if (plt_shndx == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .plt", stderr);
+                }
+            }
+
+            if (present.got)
+            {
+                u64 glob_dat_end = got_addr;
+                for (size_t i = 0; i < dyn_info.relasz / sizeof(Elf64_Rela); i++)
+                {
+                    auto & rela = reinterpret_cast<Elf64_Rela*>(&image[dyn_info.rela])[i];
+                    if (ELF64_R_TYPE(rela.r_info) == R_AARCH64_GLOB_DAT)
+                    {
+                        glob_dat_end = std::max(glob_dat_end, rela.r_offset + sizeof(u64));
+                    }
+                }
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".got");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC | SHF_WRITE;
+                shdr.sh_addr = got_addr;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = glob_dat_end - got_addr;
+                shdr.sh_addralign = sizeof(u64);
+                shdr.sh_entsize = sizeof(u64);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .got", stderr);
+                }
+            }
+
+            if (present.got_plt)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".got.plt");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC | SHF_WRITE;
+                shdr.sh_addr = dyn_info.pltgot;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = jump_slot_addr_end - dyn_info.pltgot;
+                shdr.sh_addralign = sizeof(u64);
+                shdr.sh_entsize = sizeof(u64);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .got.plt", stderr);
+                }
+            }
+
+            if (present.rela_plt)
+            {
+                if (!present.plt)
+                {
+                    fputs("warning: .rela.plt with no .plt", stderr);
+                }
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".rela.plt");
+                shdr.sh_type = SHT_RELA;
+                shdr.sh_flags = SHF_ALLOC;
+                if (plt_shndx != SHN_UNDEF)
+                {
+                    shdr.sh_flags |= SHF_INFO_LINK;
+                }
+                shdr.sh_addr = dyn_info.jmprel;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = dyn_info.pltrelsz;
+                shdr.sh_link = dynsym_shndx;
+                shdr.sh_info = plt_shndx;
+                shdr.sh_addralign = sizeof(u64);
+                shdr.sh_entsize = sizeof(Elf64_Rela);
+                if (insert_shdr(shdr) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .rela.plt", stderr);
+                }
+            }
+
+            if (present.init_array)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".init_array");
+                shdr.sh_type = SHT_INIT_ARRAY;
+                shdr.sh_flags = SHF_ALLOC | SHF_WRITE;
+                shdr.sh_addr = dyn_info.init_array;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = dyn_info.init_arraysz;
+                shdr.sh_addralign = sizeof(u64);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .init_array", stderr);
+                }
+            }
+
+            if (present.fini_array)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".fini_array");
+                shdr.sh_type = SHT_FINI_ARRAY;
+                shdr.sh_flags = SHF_ALLOC | SHF_WRITE;
+                shdr.sh_addr = dyn_info.fini_array;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = dyn_info.fini_arraysz;
+                shdr.sh_addralign = sizeof(u64);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .fini_array", stderr);
+                }
+            }
+
+            if (present.hash)
+            {
+
+                //        struct {
+
+                //            u32 nbucket;
+                //    u32 nchain;
+                //} * hash = reinterpret_cast < decltype(hash) > (&image[dyn_info.hash]);
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".hash");
+                shdr.sh_type = SHT_HASH;
+                shdr.sh_flags = SHF_ALLOC;
+                shdr.sh_addr = dyn_info.hash;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = sizeof(* hash) +hash->nbucket * sizeof(u32) + hash->nchain * sizeof(u32);
+                shdr.sh_link = dynsym_shndx;
+                shdr.sh_addralign = sizeof(u64);
+                shdr.sh_entsize = sizeof(u32);
+                if (insert_shdr(shdr) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .hash", stderr);
+                }
+            }
+
+            if (present.gnu_hash)
+            {
+                //			struct {
+
+                //                u32 nbuckets;
+                //u32 symndx;
+                //u32 maskwords;
+                //u32 shift2;
+                //			} * gnu_hash = reinterpret_cast < decltype(gnu_hash) > (&image[dyn_info.gnu_hash]);
+                size_t gnu_hash_len = sizeof(*gnu_hash);
+                gnu_hash_len += gnu_hash->maskwords * sizeof(u64);
+                gnu_hash_len += gnu_hash->nbuckets * sizeof(u32);
+                u64 dynsymcount = header.dynsym.size / sizeof(Elf64_Sym);
+                gnu_hash_len += (dynsymcount - gnu_hash->symndx) * sizeof(u32);
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".gnu.hash");
+                shdr.sh_type = SHT_GNU_HASH;
+                shdr.sh_flags = SHF_ALLOC;
+                shdr.sh_addr = dyn_info.gnu_hash;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = gnu_hash_len;
+                shdr.sh_link = dynsym_shndx;
+                shdr.sh_addralign = sizeof(u64);
+                shdr.sh_entsize = sizeof(u32);
+                if (insert_shdr(shdr) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .gnu.hash", stderr);
+                }
+            }
+
+            if (present.note)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".note");
+                shdr.sh_type = SHT_NOTE;
+                shdr.sh_flags = SHF_ALLOC;
+                shdr.sh_addr = reinterpret_cast<uintptr_t>(note) - reinterpret_cast<uintptr_t>(&image[0]);
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = sizeof(* note) +note->n_descsz + note->n_namesz;
+                shdr.sh_addralign = sizeof(u32);
+                if (insert_shdr(shdr) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .note", stderr);
+                }
+            }
+
+            if (present.eh)
+            {
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".eh_frame_hdr");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC;
+                shdr.sh_addr = eh_info.hdr_addr;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = eh_info.hdr_size;
+                shdr.sh_addralign = sizeof(u32);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .eh_frame_hdr", stderr);
+                }
+                shdr = new Elf64Shdr();
+                shdr.sh_name = shstrtab.GetOffset(".eh_frame");
+                shdr.sh_type = SHT_PROGBITS;
+                shdr.sh_flags = SHF_ALLOC;
+                shdr.sh_addr = eh_info.frame_addr;
+                shdr.sh_offset = vaddr_to_foffset(shdr.sh_addr);
+                shdr.sh_size = eh_info.frame_size;
+                shdr.sh_addralign = sizeof(u32);
+                if (insert_shdr(shdr, true) == SHN_UNDEF)
+                {
+                    fputs("failed to insert new shdr for .eh_frame", stderr);
+                }
+            }
+
+            shdr = new Elf64Shdr();
+            shdr.sh_name = shstrtab.GetOffset(".shstrtab");
+            shdr.sh_type = SHT_STRTAB;
+            shdr.sh_offset = shstrtab.offset;
+            shdr.sh_size = shstrtab.buffer.size();
+            shdr.sh_addralign = sizeof(char);
+            ehdr->e_shstrndx = insert_shdr(shdr);
+            if (ehdr->e_shstrndx == SHN_UNDEF)
+            {
+                fputs("failed to insert new shdr for .shstrtab", stderr);
+            }
 
             ehdr.Write(elf);
             phdrs.Write(elf.AsSpan().Slice((int)ehdr.PhOff));
