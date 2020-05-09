@@ -48,7 +48,8 @@ namespace NsoElfConverterDotNet.Nx2elf
             }
 
             var modPtr = new ModPointer(Image);
-            var modBase = Image.AsSpan().Slice((int)modPtr.magic_offset);
+            var modBaseRaw = (int)modPtr.magic_offset;
+            var modBase = Image.AsSpan().Slice(modBaseRaw);
             var mod = new ModHeader(modBase);
 
             DynInfo = new DynInfoData();
@@ -174,14 +175,13 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
             }
 
-            int mod_get_offset(ReadOnlySpan<byte> modBase, int relative_offset)
+            int mod_get_offset(int modBaseRaw, int relative_offset)
             {
-                var ptr = modBase.Slice(relative_offset);
-                return BinaryPrimitives.ReadInt32LittleEndian(ptr);
+                return modBaseRaw + relative_offset;
             };
 
-            EhInfoHdrAddr = mod_get_offset(modBase, (int)mod.eh_start_offset);
-            EhInfoHdrSize = mod_get_offset(modBase, (int)mod.eh_end_offset) - EhInfoHdrAddr;
+            EhInfoHdrAddr = mod_get_offset(modBaseRaw, (int)mod.eh_start_offset);
+            EhInfoHdrSize = mod_get_offset(modBaseRaw, (int)mod.eh_end_offset) - EhInfoHdrAddr;
         }
 
         public NsoFile(byte[] nso) : this(new BinaryFile(nso))
@@ -582,7 +582,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                     {
                         dyn_size += Elf64Dyn.Length;
                         dynOffset += Elf64Dyn.Length;
-                        dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset));
+                        dynamic = new Elf64Dyn(Image.AsSpan().Slice(dynOffset));
                     }
                     phdr.FileSize = phdr.MemSize = (ulong)dyn_size;
                     phdr.Align = 8;
@@ -1059,7 +1059,9 @@ namespace NsoElfConverterDotNet.Nx2elf
         private static int ELF64_ST_BIND(int info) => ((info) >> 4);
 
         private static long ALIGN_DOWN(long x, long align) => ((x) & ~((align) - 1));
+        private static int ALIGN_DOWN(int x, int align) => ((x) & ~((align) - 1));
         private static long ALIGN_UP(long x, long align) => ALIGN_DOWN((x) + ((align) - 1), (align));
+        private static int ALIGN_UP(int x, int align) => ALIGN_DOWN((x) + ((align) - 1), (align));
 
         private class StringTable
         {
@@ -1072,7 +1074,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             private readonly Dictionary<string, uint> entries;
 
             public byte[] Buffer { get; private set; }
-            public int Size { get => Buffer.Length; }
+            public int Size { get; private set; }
             public int Offset { get; set; }
 
             private uint Watermark { get; set; }
@@ -1103,7 +1105,8 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             public void Build()
             {
-                throw new NotImplementedException();
+                Buffer = GetBuffer();
+                Size = ALIGN_UP(Buffer.Length, 0x10);
             }
         }
 
