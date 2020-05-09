@@ -59,45 +59,5 @@ namespace NsoElfConverterDotNet.Properties {
                 resourceCulture = value;
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] libnx2elf_x64 {
-            get {
-                object obj = ResourceManager.GetObject("libnx2elf_x64", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] libnx2elf_x86 {
-            get {
-                object obj = ResourceManager.GetObject("libnx2elf_x86", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] nx2elf_x64 {
-            get {
-                object obj = ResourceManager.GetObject("nx2elf_x64", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized resource of type System.Byte[].
-        /// </summary>
-        internal static byte[] nx2elf_x86 {
-            get {
-                object obj = ResourceManager.GetObject("nx2elf_x86", resourceCulture);
-                return ((byte[])(obj));
-            }
-        }
     }
 }

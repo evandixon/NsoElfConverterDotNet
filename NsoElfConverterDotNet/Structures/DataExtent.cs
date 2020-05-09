@@ -25,7 +25,7 @@ namespace NsoElfConverterDotNet.Structures
             var buffer = new byte[8];
             BinaryPrimitives.WriteUInt64LittleEndian(buffer, l);
             var offset = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-            var size = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan().Slice(4);
+            var size = BinaryPrimitives.ReadUInt32LittleEndian(buffer.AsSpan().Slice(4));
             return new DataExtent 
             { 
                 Offset = offset,

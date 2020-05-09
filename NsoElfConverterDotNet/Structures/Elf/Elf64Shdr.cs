@@ -6,7 +6,7 @@ using System.Text;
 
 namespace NsoElfConverterDotNet.Structures.Elf
 {
-    public struct Elf64Shdr
+    public class Elf64Shdr
     {
         public const int Length = 64;
 

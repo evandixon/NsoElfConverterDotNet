@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using NsoElfConverterDotNet.Structures;
+using NsoElfConverterDotNet.Structures.Elf;
 using SkyEditor.IO.Binary;
 using System;
 using System.Collections.Generic;
@@ -86,10 +87,10 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 var currentShHeader = new Elf64Shdr(elf.Slice((long)currentSectionHeaderOffset, header.SHEntSize));
                 if (currentShHeader.Type == ElfConstants.SHT_NOTE)
                 {
-                    var noteData = elf.Slice((long)currentShHeader.Offset, ElfNote.Length);
-                    var noteHeader = new ElfNote(noteData);
-                    var noteName = elf.Slice((long)currentShHeader.Offset + ElfNote.Length, noteHeader.NameSize);
-                    var noteDesc = elf.Slice((long)currentShHeader.Offset + ElfNote.Length + noteHeader.NameSize, noteHeader.DescriptorSize);
+                    var noteData = elf.Slice((long)currentShHeader.Offset, Elf64Nhdr.Length);
+                    var noteHeader = new Elf64Nhdr(noteData);
+                    var noteName = elf.Slice((long)currentShHeader.Offset + Elf64Nhdr.Length, noteHeader.NameSize);
+                    var noteDesc = elf.Slice((long)currentShHeader.Offset + Elf64Nhdr.Length + noteHeader.NameSize, noteHeader.DescriptorSize);
                     var noteNameString = noteName.ReadString(0, 4, Encoding.ASCII);
                     if (noteHeader.Type == ElfConstants.NT_GNU_BUILD_ID && noteHeader.NameSize == 4 && noteNameString == "GNU\0")
                     {
