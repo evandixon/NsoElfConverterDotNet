@@ -1,23 +1,11 @@
-﻿using SkyEditor.IO.Binary;
-using System;
+﻿using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Text;
 
 namespace NsoElfConverterDotNet.Structures
 {
     public struct NsoSegment
     {
         public const int Length = 16;
-
-        public NsoSegment(IReadOnlyBinaryDataAccessor accessor)
-        {
-            accessor.Position = 0;
-            FileOffset = accessor.ReadNextUInt32();
-            MemoryOffset = accessor.ReadNextUInt32();
-            MemorySize = accessor.ReadNextUInt32();
-            AlignOrTotalSz = accessor.ReadNextUInt32();
-        }
 
         public NsoSegment(ReadOnlySpan<byte> data)
         {

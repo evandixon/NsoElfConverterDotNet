@@ -1,8 +1,5 @@
-﻿using SkyEditor.IO.Binary;
-using System;
+﻿using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Text;
 
 namespace NsoElfConverterDotNet.Structures.Elf
 {
@@ -17,13 +14,6 @@ namespace NsoElfConverterDotNet.Structures.Elf
     public struct Elf64Nhdr
     {
         public const int Length = 12;
-
-        public Elf64Nhdr(IReadOnlyBinaryDataAccessor data)
-        {
-            NameSize = data.ReadUInt32(0);
-            DescriptorSize = data.ReadUInt32(4);
-            Type = data.ReadUInt32(8);
-        }
 
         public Elf64Nhdr(ReadOnlySpan<byte> data)
         {

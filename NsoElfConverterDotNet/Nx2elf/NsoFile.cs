@@ -1,30 +1,24 @@
 ﻿using K4os.Compression.LZ4;
-using NsoElfConverterDotNet.Elf2Nso;
 using NsoElfConverterDotNet.Structures;
 using NsoElfConverterDotNet.Structures.Elf;
-using SkyEditor.IO.Binary;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 
 namespace NsoElfConverterDotNet.Nx2elf
 {
     public class NsoFile
     {
-        public NsoFile(IReadOnlyBinaryDataAccessor accessor)
+        public NsoFile(ReadOnlySpan<byte> data)
         {
-            if (accessor.Length < NsoHeader.Length)
+            if (data.Length < NsoHeader.Length)
             {
-                throw new ArgumentException("NSO data is smaller than the header", nameof(accessor));
+                throw new ArgumentException("NSO data is smaller than the header", nameof(data));
             }
 
-            Header = new NsoHeader(accessor.Slice(0, NsoHeader.Length));
+            Header = new NsoHeader(data.Slice(0, NsoHeader.Length));
 
             // assume segments are after each other and mem offsets are aligned
             // note: there are also symbols "_start" and "end" which describe
@@ -38,7 +32,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 var segment = Header.Segments[i];
                 var fileSize = Header.SegmentFileSIzes[i];
 
-                var compressed = accessor.ReadSpan(segment.FileOffset, (int)fileSize);
+                var compressed = data.Slice((int)segment.FileOffset, (int)fileSize);
                 var decompressed = Image.AsSpan().Slice((int)segment.MemoryOffset, (int)segment.MemorySize);
                 var decompressedSize = LZ4Codec.Decode(compressed, decompressed);
                 if (decompressedSize <= 0)
@@ -185,10 +179,6 @@ namespace NsoElfConverterDotNet.Nx2elf
             EhInfoHdrSize = mod_get_offset(modBaseRaw, (int)mod.eh_end_offset) - EhInfoHdrAddr;
         }
 
-        public NsoFile(byte[] nso) : this(new BinaryFile(nso))
-        {
-        }
-
         public NsoHeader Header { get; }
 
         private byte[] Image { get; }
@@ -203,7 +193,7 @@ namespace NsoElfConverterDotNet.Nx2elf
 
         private void IterateDynamic(Action<Elf64Sym, uint> action)
         {
-            for (uint i = 0; i < Header.dynsym.Size / Elf64Sym.Length; i++)
+            for (uint i = 0; i < Header.DynSym.Size / Elf64Sym.Length; i++)
             {
                 var sym = new Elf64Sym(Image.AsSpan().Slice((int)DynInfo.symtab + Elf64Sym.Length * (int)i));
                 action(sym, i);
@@ -437,10 +427,7 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             uint ehInfoFrameAddr = 0;
             uint ehInfoFrameSize = 0;
-            uint ehInfoHdrAddr = 0;
             uint ehInfoHdrSize = 0;
-
-            uint ehFramePtr;
             if (ElfEHInfo.MeasureFrame(Image, EhInfoHdrAddr, out ehInfoFrameAddr, out ehInfoFrameSize))
             {
                 // XXX the alignment of sizes is a fudge...
@@ -689,9 +676,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             shdr.Name = shstrtab.GetOffset(".dynstr");
             shdr.Type = ElfConstants.SHT_STRTAB;
             shdr.Flags = ElfConstants.SHF_ALLOC;
-            shdr.Addr = Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset + Header.dynstr.Offset;
-            shdr.Offset = rodataPhdr.Offset + Header.dynstr.Offset;
-            shdr.Size = Header.dynstr.Size;
+            shdr.Addr = Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset + Header.DynStr.Offset;
+            shdr.Offset = rodataPhdr.Offset + Header.DynStr.Offset;
+            shdr.Size = Header.DynStr.Size;
             shdr.AddrAlign = 1;
             uint dynstr_shndx = insert_shdr(shdrsStart, shdr);
             if (dynstr_shndx == ElfConstants.SHN_UNDEF)
@@ -710,9 +697,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             shdr.Name = shstrtab.GetOffset(".dynsym");
             shdr.Type = ElfConstants.SHT_DYNSYM;
             shdr.Flags = ElfConstants.SHF_ALLOC;
-            shdr.Addr = Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset + Header.dynsym.Offset;
-            shdr.Offset = rodataPhdr.Offset + Header.dynsym.Offset;
-            shdr.Size = Header.dynsym.Size;
+            shdr.Addr = Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset + Header.DynSym.Offset;
+            shdr.Offset = rodataPhdr.Offset + Header.DynSym.Offset;
+            shdr.Size = Header.DynSym.Size;
             shdr.Link = dynstr_shndx;
             shdr.Info = last_local_dynsym_index + 1;
             shdr.AddrAlign = 8;
@@ -900,7 +887,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 uint gnu_hash_len = GnuHash.Length;
                 gnu_hash_len += gnu_hash.maskwords * 8;
                 gnu_hash_len += gnu_hash.nbuckets * 4;
-                ulong dynsymcount = Header.dynsym.Size / Elf64Sym.Length;
+                ulong dynsymcount = Header.DynSym.Size / Elf64Sym.Length;
                 gnu_hash_len += (uint)((dynsymcount - gnu_hash.symndx) * 4);
                 shdr = new Elf64Shdr();
                 shdr.Name = shstrtab.GetOffset(".gnu.hash");

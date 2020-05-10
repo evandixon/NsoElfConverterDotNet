@@ -1,8 +1,5 @@
-﻿using SkyEditor.IO.Binary;
-using System;
+﻿using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Text;
 
 namespace NsoElfConverterDotNet.Structures.Elf
 {
@@ -44,25 +41,25 @@ namespace NsoElfConverterDotNet.Structures.Elf
             Ident = new byte[ElfConstants.EI_NIDENT];
         }
 
-        public Elf64Ehdr(IReadOnlyBinaryDataAccessor data)
+        public Elf64Ehdr(ReadOnlySpan<byte> data)
         {
-            Ident = data.ReadArray(0, ElfConstants.EI_NIDENT);
+            Ident = data.Slice(0, ElfConstants.EI_NIDENT).ToArray();
 
             var index = ElfConstants.EI_NIDENT;
 
-            Type = data.ReadUInt16(index); index += 2;
-            Machine = data.ReadUInt16(index); index += 2;
-            Version = data.ReadUInt32(index); index += 4;
-            Entry = data.ReadUInt64(index); index += 8;
-            PhOff = data.ReadUInt64(index); index += 8;
-            ShOff = data.ReadUInt64(index); index += 8;
-            Flags = data.ReadUInt32(index); index += 4;
-            EhSize = data.ReadUInt16(index); index += 2;
-            PHEntSize = data.ReadUInt16(index); index += 2;
-            PHNum = data.ReadUInt16(index); index += 2;
-            SHEntSize = data.ReadUInt16(index); index += 2;
-            SHNum = data.ReadUInt16(index); index += 2;
-            SHStrNdx = data.ReadUInt16(index); index += 2;
+            Type = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            Machine = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            Version = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            Entry = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            PhOff = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            ShOff = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            Flags = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            EhSize = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            PHEntSize = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            PHNum = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            SHEntSize = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            SHNum = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
+            SHStrNdx = BinaryPrimitives.ReadUInt16LittleEndian(data.Slice(index)); index += 2;
         }
 
         public void Write(Span<byte> data)

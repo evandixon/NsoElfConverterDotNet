@@ -1,7 +1,6 @@
 ﻿using K4os.Compression.LZ4;
 using NsoElfConverterDotNet.Structures;
 using NsoElfConverterDotNet.Structures.Elf;
-using SkyEditor.IO.Binary;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,7 +11,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
 {
     internal static class ElfToNsoConverter
     {
-        public static byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elf)
+        public static byte[] ConvertElfToNso(ReadOnlySpan<byte> elf)
         {
             if (elf.Length < Elf64Ehdr.Length)
             {
@@ -43,7 +42,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 while (j < header.PHNum)
                 {
                     var phOffset = (long)header.PhOff + j++ * Elf64Phdr.Length;
-                    var current = new Elf64Phdr(elf.Slice(phOffset, header.PHEntSize));
+                    var current = new Elf64Phdr(elf.Slice((int)phOffset, header.PHEntSize));
                     if (current.Type == ElfConstants.PT_LOAD)
                     {
                         phdr = current;
@@ -70,7 +69,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     nsoHeader.Segments[i].AlignOrTotalSz = 1;
                 }
 
-                var sectionData = elf.ReadSpan((long)phdr.Offset, (int)phdr.FileSize);
+                var sectionData = elf.Slice((int)phdr.Offset, (int)phdr.FileSize);
                 nsoHeader.Hashes[i] = sha256.ComputeHash(sectionData.ToArray());
 
                 var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
@@ -84,14 +83,14 @@ namespace NsoElfConverterDotNet.Elf2Nso
             var currentSectionHeaderOffset = header.ShOff;
             for (int i = 0; i < header.SHNum; i++)
             {
-                var currentShHeader = new Elf64Shdr(elf.Slice((long)currentSectionHeaderOffset, header.SHEntSize));
+                var currentShHeader = new Elf64Shdr(elf.Slice((int)currentSectionHeaderOffset, header.SHEntSize));
                 if (currentShHeader.Type == ElfConstants.SHT_NOTE)
                 {
-                    var noteData = elf.Slice((long)currentShHeader.Offset, Elf64Nhdr.Length);
+                    var noteData = elf.Slice((int)currentShHeader.Offset, Elf64Nhdr.Length);
                     var noteHeader = new Elf64Nhdr(noteData);
-                    var noteName = elf.Slice((long)currentShHeader.Offset + Elf64Nhdr.Length, noteHeader.NameSize);
-                    var noteDesc = elf.Slice((long)currentShHeader.Offset + Elf64Nhdr.Length + noteHeader.NameSize, noteHeader.DescriptorSize);
-                    var noteNameString = noteName.ReadString(0, 4, Encoding.ASCII);
+                    var noteName = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length, (int)noteHeader.NameSize);
+                    var noteDesc = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length + (int)noteHeader.NameSize, (int)noteHeader.DescriptorSize);
+                    var noteNameString = Encoding.ASCII.GetString(noteName.Slice(0, 4));
                     if (noteHeader.Type == ElfConstants.NT_GNU_BUILD_ID && noteHeader.NameSize == 4 && noteNameString == "GNU\0")
                     {
                         var buildIdSize = noteHeader.DescriptorSize;
@@ -99,7 +98,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                         {
                             buildIdSize = 0x20;
                         }
-                        Array.Copy(noteDesc.ReadArray(0, (int)buildIdSize), nsoHeader.BuildId, buildIdSize);
+                        noteDesc.Slice(0, (int)buildIdSize).CopyTo(nsoHeader.BuildId);
                     }
                 }
                 currentSectionHeaderOffset += header.SHEntSize;

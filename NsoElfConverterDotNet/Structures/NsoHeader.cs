@@ -1,5 +1,5 @@
-﻿using SkyEditor.IO.Binary;
-using System;
+﻿using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Text;
 
@@ -26,37 +26,37 @@ namespace NsoElfConverterDotNet.Structures
             };
         }
 
-        public NsoHeader(IReadOnlyBinaryDataAccessor accessor)
+        public NsoHeader(ReadOnlySpan<byte> data)
         {
-            accessor.Position = 0;
-            Magic = accessor.ReadNextArray(4);
-            Unk1 = accessor.ReadNextUInt32();
-            Unk2 = accessor.ReadNextUInt32();
-            Unk3 = accessor.ReadNextUInt32();
+            var index = 0;
+            Magic = data.Slice(0, 4).ToArray(); index += 4;
+            Unk1 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            Unk2 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            Unk3 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
 
             Segments = new NsoSegment[3];
             for (int i = 0; i < 3; i++)
             {
-                Segments[i] = new NsoSegment(accessor.ReadNextSpan(NsoSegment.Length));
+                Segments[i] = new NsoSegment(data.Slice(index, NsoSegment.Length)); index += NsoSegment.Length;
             }
 
-            BuildId = accessor.ReadNextArray(0x20);
+            BuildId = data.Slice(index, 0x20).ToArray(); index += 0x20;
 
             SegmentFileSIzes = new uint[3];
             for (int i = 0; i < 3; i++)
             {
-                SegmentFileSIzes[i] = accessor.ReadNextUInt32();
+                SegmentFileSIzes[i] = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
             }
 
-            Padding = accessor.ReadNextArray(0x24);
+            Padding = data.Slice(index, 0x24).ToArray(); index += 0x24;
 
-            dynstr = (DataExtent)accessor.ReadNextUInt64();
-            dynsym = (DataExtent)accessor.ReadNextUInt64();
+            DynStr = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 4;
+            DynSym = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 4;
 
             Hashes = new List<byte[]>(3);
             for (int i = 0; i < 3; i++)
             {
-                Hashes.Add(accessor.ReadNextArray(0x20));
+                Hashes.Add(data.Slice(index, 0x20).ToArray()); index += 0x20;
             }
         }
 
@@ -77,8 +77,8 @@ namespace NsoElfConverterDotNet.Structures
                 buffer.AddRange(BitConverter.GetBytes(size));
             }
             buffer.AddRange(Padding);
-            buffer.AddRange(BitConverter.GetBytes((ulong)dynstr));
-            buffer.AddRange(BitConverter.GetBytes((ulong)dynsym));
+            buffer.AddRange(BitConverter.GetBytes((ulong)DynStr));
+            buffer.AddRange(BitConverter.GetBytes((ulong)DynSym));
             foreach (var hash in Hashes)
             {
                 buffer.AddRange(hash);
@@ -102,9 +102,9 @@ namespace NsoElfConverterDotNet.Structures
 
         public byte[] Padding { get; set; }
 
-        public DataExtent dynstr { get; set; }
+        public DataExtent DynStr { get; set; }
 
-        public DataExtent dynsym { get; set; }
+        public DataExtent DynSym { get; set; }
 
         public IList<byte[]> Hashes { get; set; } // 3 sets of byte[] length 0x20
     }

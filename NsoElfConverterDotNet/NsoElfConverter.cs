@@ -1,6 +1,5 @@
 ﻿using NsoElfConverterDotNet.Elf2Nso;
 using NsoElfConverterDotNet.Nx2elf;
-using SkyEditor.IO.Binary;
 
 namespace NsoElfConverterDotNet
 {
@@ -20,13 +19,6 @@ namespace NsoElfConverterDotNet
         /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
         byte[] ConvertElfToNso(byte[] elfFile);
-
-        /// <summary>
-        /// Converts an ELF file to an NSO file
-        /// </summary>
-        /// <param name="elfFile">Contents of the source ELF file</param>
-        /// <returns>A byte array containing the contents of the target NSO file</returns>
-        byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elfFile);
     }
 
     public class NsoElfConverter : INsoElfConverter
@@ -54,17 +46,6 @@ namespace NsoElfConverterDotNet
         /// <param name="elfFile">Contents of the source ELF file</param>
         /// <returns>A byte array containing the contents of the target NSO file</returns>
         public byte[] ConvertElfToNso(byte[] elfFile)
-        {
-            using var binary = new BinaryFile(elfFile);
-            return ElfToNsoConverter.ConvertElfToNso(binary);
-        }
-
-        /// <summary>
-        /// Converts an ELF file to an NSO file
-        /// </summary>
-        /// <param name="elfFile">Contents of the source ELF file</param>
-        /// <returns>A byte array containing the contents of the target NSO file</returns>
-        public byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elfFile)
         {
             return ElfToNsoConverter.ConvertElfToNso(elfFile);
         }

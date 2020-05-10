@@ -1,10 +1,4 @@
-﻿using SkyEditor.IO.Binary;
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Text;
-
-namespace NsoElfConverterDotNet.Structures.Elf
+﻿namespace NsoElfConverterDotNet.Structures.Elf
 {
     // Copyright (c) 2000, 2001, 2008, 2011, David E. O'Brien
     // Copyright (c) 1998 John D. Polstra.

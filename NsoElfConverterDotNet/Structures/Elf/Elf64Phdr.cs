@@ -1,8 +1,5 @@
-﻿using SkyEditor.IO.Binary;
-using System;
+﻿using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Text;
 
 namespace NsoElfConverterDotNet.Structures.Elf
 {
@@ -41,19 +38,6 @@ namespace NsoElfConverterDotNet.Structures.Elf
 
         public Elf64Phdr()
         {
-        }
-
-        public Elf64Phdr(IReadOnlyBinaryDataAccessor data)
-        {
-            var index = 0;
-            Type = data.ReadUInt32(index); index += 4;
-            Flags = data.ReadUInt32(index); index += 4;
-            Offset = data.ReadUInt64(index); index += 8;
-            VAddr = data.ReadUInt64(index); index += 8;
-            PAddr = data.ReadUInt64(index); index += 8;
-            FileSize = data.ReadUInt64(index); index += 8;
-            MemSize = data.ReadUInt64(index); index += 8;
-            Align = data.ReadUInt64(index); index += 8;
         }
 
         public Elf64Phdr(ReadOnlySpan<byte> data)
