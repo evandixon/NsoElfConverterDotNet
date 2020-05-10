@@ -123,13 +123,13 @@
         public const int ELFOSABI_MONTEREY = ELFOSABI_AIX;    /* Monterey */
 
         /* e_ident */
-        public static bool IS_ELF(dynamic ehdr)
-        {
-            return (ehdr.e_ident[EI_MAG0] == ELFMAG0 &&
-             ehdr.e_ident[EI_MAG1] == ELFMAG1 &&
-             ehdr.e_ident[EI_MAG2] == ELFMAG2 &&
-             ehdr.e_ident[EI_MAG3] == ELFMAG3);
-        }
+        //public static bool IS_ELF(dynamic ehdr)
+        //{
+        //    return (ehdr.e_ident[EI_MAG0] == ELFMAG0 &&
+        //     ehdr.e_ident[EI_MAG1] == ELFMAG1 &&
+        //     ehdr.e_ident[EI_MAG2] == ELFMAG2 &&
+        //     ehdr.e_ident[EI_MAG3] == ELFMAG3);
+        //}
 
         /* Values for e_type. */
         public const int ET_NONE = 0;  /* Unknown type. */

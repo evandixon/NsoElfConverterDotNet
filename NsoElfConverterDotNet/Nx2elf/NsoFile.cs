@@ -1073,7 +1073,11 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             public uint GetOffset(string name)
             {
-                return entries.GetValueOrDefault(name);
+                if (entries.TryGetValue(name, out var value))
+                {
+                    return value;
+                }
+                return 0;
             }
 
             public byte[] GetBuffer()

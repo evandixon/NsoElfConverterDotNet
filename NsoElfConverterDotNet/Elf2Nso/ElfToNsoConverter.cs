@@ -90,7 +90,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     var noteHeader = new Elf64Nhdr(noteData);
                     var noteName = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length, (int)noteHeader.NameSize);
                     var noteDesc = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length + (int)noteHeader.NameSize, (int)noteHeader.DescriptorSize);
-                    var noteNameString = Encoding.ASCII.GetString(noteName.Slice(0, 4));
+                    var noteNameString = Encoding.ASCII.GetString(noteName.Slice(0, 4).ToArray());
                     if (noteHeader.Type == ElfConstants.NT_GNU_BUILD_ID && noteHeader.NameSize == 4 && noteNameString == "GNU\0")
                     {
                         var buildIdSize = noteHeader.DescriptorSize;

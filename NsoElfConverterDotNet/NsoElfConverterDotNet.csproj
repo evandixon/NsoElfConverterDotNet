@@ -1,11 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <Authors>evandixon</Authors>
     <Description>Converts Nintendo Switch executables to ELF and back</Description>
     <RepositoryUrl>https://github.com/evandixon/NsoElfConverterDotNet</RepositoryUrl>
     <Copyright>2020</Copyright>
+    <LangVersion>8</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -14,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="K4os.Compression.LZ4" Version="1.1.11" />
+    <PackageReference Include="System.Memory" Version="4.5.4" />
   </ItemGroup>
 
   <ItemGroup>
