@@ -30,7 +30,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             for (int i = 0; i < 3; i++)
             {
                 var segment = Header.Segments[i];
-                var fileSize = Header.SegmentFileSIzes[i];
+                var fileSize = Header.SegmentFileSizes[i];
 
                 var compressed = data.Slice((int)segment.FileOffset, (int)fileSize);
                 var decompressed = Image.AsSpan().Slice((int)segment.MemoryOffset, (int)segment.MemorySize);

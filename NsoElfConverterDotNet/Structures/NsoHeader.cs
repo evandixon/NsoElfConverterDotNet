@@ -15,7 +15,7 @@ namespace NsoElfConverterDotNet.Structures
             Unk3 = 0x3f;
             Segments = new NsoSegment[3];
             BuildId = new byte[0x20];
-            SegmentFileSIzes = new uint[3];
+            SegmentFileSizes = new uint[3];
             Padding = new byte[0x24];
 
             this.Hashes = new List<byte[]>
@@ -42,16 +42,16 @@ namespace NsoElfConverterDotNet.Structures
 
             BuildId = data.Slice(index, 0x20).ToArray(); index += 0x20;
 
-            SegmentFileSIzes = new uint[3];
+            SegmentFileSizes = new uint[3];
             for (int i = 0; i < 3; i++)
             {
-                SegmentFileSIzes[i] = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+                SegmentFileSizes[i] = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
             }
 
             Padding = data.Slice(index, 0x24).ToArray(); index += 0x24;
 
-            DynStr = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 4;
-            DynSym = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 4;
+            DynStr = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            DynSym = (DataExtent)BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
 
             Hashes = new List<byte[]>(3);
             for (int i = 0; i < 3; i++)
@@ -72,7 +72,7 @@ namespace NsoElfConverterDotNet.Structures
                 buffer.AddRange(segment.ToByteArray());
             }
             buffer.AddRange(BuildId);
-            foreach (var size in SegmentFileSIzes)
+            foreach (var size in SegmentFileSizes)
             {
                 buffer.AddRange(BitConverter.GetBytes(size));
             }
@@ -98,7 +98,7 @@ namespace NsoElfConverterDotNet.Structures
 
         public byte[] BuildId { get; set; } // Length: 0x20
 
-        public uint[] SegmentFileSIzes { get; set; } // Length: 3
+        public uint[] SegmentFileSizes { get; set; } // Length: 3
 
         public byte[] Padding { get; set; }
 

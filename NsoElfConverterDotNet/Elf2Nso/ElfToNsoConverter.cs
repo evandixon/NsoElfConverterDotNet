@@ -75,7 +75,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
                 var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L00_FAST);
                 compressedBuffers.Add(compressedBuffer);
-                nsoHeader.SegmentFileSIzes[i] = (uint)compressedLength;
+                nsoHeader.SegmentFileSizes[i] = (uint)compressedLength;
                 fileOffset += (uint)compressedLength;
             }
 
@@ -105,11 +105,11 @@ namespace NsoElfConverterDotNet.Elf2Nso
             }
 
             var headerData = nsoHeader.ToByteArray();
-            var buffer = new List<byte>(headerData.Length + nsoHeader.SegmentFileSIzes.Cast<int>().Sum());
+            var buffer = new List<byte>(headerData.Length + nsoHeader.SegmentFileSizes.Cast<int>().Sum());
             buffer.AddRange(headerData);
-            for (int i = 0; i < nsoHeader.SegmentFileSIzes.Length; i++)
+            for (int i = 0; i < nsoHeader.SegmentFileSizes.Length; i++)
             {
-                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.SegmentFileSIzes[i]));
+                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.SegmentFileSizes[i]));
             }
             return buffer.ToArray();
         }
