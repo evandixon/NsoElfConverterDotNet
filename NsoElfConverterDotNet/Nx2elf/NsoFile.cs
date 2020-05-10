@@ -159,19 +159,20 @@ namespace NsoElfConverterDotNet.Nx2elf
                 71 /* G */, 78 /* N */, 85 /* U */, 0 };
             var sha1BuildIdNeedle = new byte[] { 4, 0, 0, 0  /* sizeof(GnuBuildId::owner) */ , 20, 0, 0, 0  /* sizeof(GnuBuildId::build_id_sha1) */, 3, 0, 0, 0,
                 71 /* G */, 78 /* N */, 85 /* U */, 0 };
-            foreach (var segment in Header.Segments)
+            foreach (var segmentType in new[] { NsoSegmentType.Rodata, NsoSegmentType.Text, NsoSegmentType.Data })
             {
+                var segment = Header.Segments[(int)segmentType];
                 var segmentData = Image.AsSpan().Slice((int)segment.MemoryOffset, (int)segment.MemorySize);
                 var noteOffset = memmemr(segmentData, segmentData.Length, md5BuildIdNeedle, md5BuildIdNeedle.Length);
-                if (noteOffset == 0)
+                if (noteOffset == -1)
                 {
                     noteOffset = memmemr(segmentData, segmentData.Length, sha1BuildIdNeedle, sha1BuildIdNeedle.Length);
                 }
 
-                if (noteOffset != 0)
+                if (noteOffset != -1)
                 {
-                    Note = new Elf64Nhdr(Image.AsSpan().Slice(noteOffset));
-                    NoteOffset = noteOffset;
+                    Note = new Elf64Nhdr(Image.AsSpan().Slice((int)segment.MemoryOffset + noteOffset));
+                    NoteOffset = (int)segment.MemoryOffset + noteOffset;
                 }
             }
 
@@ -554,14 +555,14 @@ namespace NsoElfConverterDotNet.Nx2elf
                         phdr.Align = seg.AlignOrTotalSz;
                     }
 
-                    phdr.Write(elf.AsSpan().Slice((int)phdr.Offset));
+                    Image.AsSpan().Slice((int)seg.MemoryOffset, (int)seg.MemorySize).CopyTo(elf.AsSpan().Slice((int)phdr.Offset));
 
                     // fixup sh_offset
                     foreach (var known_section in knownSections)
                     {
                         if (known_section.Value.Addr == phdr.VAddr)
                         {
-                            known_section.Value.Offset = phdr.Offset;
+                            knownSections[known_section.Key].Offset = phdr.Offset;
                         }
                     }
 
@@ -606,13 +607,12 @@ namespace NsoElfConverterDotNet.Nx2elf
             // otherwise work fine by being only in the dynamic section, must also
             // have section headers...
             var shdrsStart = elf.AsSpan().Slice((int)ehdr.ShOff);
-            var shdrs = new Elf64Shdr();
             // Insert sections for which section index was known
-            //for (auto & known_section : known_sections)
-            //{
-            //    auto shdr = &shdrs[known_section.first];
-            //    *shdr = known_section.second;
-            //}
+            foreach (var known_section in knownSections)
+            {
+                var currentShdrOffset = shdrsStart.Slice(known_section.Key * Elf64Shdr.Length);
+                known_section.Value.Write(currentShdrOffset);
+            }
             // Insert other handy sections at an available section index
             uint insert_shdr(Span<byte> shdrsStart, Elf64Shdr shdr, bool ordered = false)
             {
@@ -634,7 +634,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 for (var i = start; i < numShdrs; i++)
                 {
                     var currentShdrStart = shdrsStart.Slice((int)i * Elf64Shdr.Length);
-                    var currentShdr = new Elf64Shdr();
+                    var currentShdr = new Elf64Shdr(currentShdrStart);
                     if (currentShdr.Type == ElfConstants.SHT_NULL)
                     {
                         shdr.Write(currentShdrStart);
@@ -677,7 +677,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Addr = DynInfo.fini;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
                 shdr.Size = (ulong)finiBranchOffset;
-                shdr.AddrAlign = 3;
+                shdr.AddrAlign = 4;
                 if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
                 {
                     throw new Exception("failed to insert new shdr for .fini");
@@ -692,7 +692,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             shdr.Addr = Header.Segments[(int)NsoSegmentType.Rodata].MemoryOffset + Header.dynstr.Offset;
             shdr.Offset = rodataPhdr.Offset + Header.dynstr.Offset;
             shdr.Size = Header.dynstr.Size;
-            shdr.AddrAlign = sizeof(char);
+            shdr.AddrAlign = 1;
             uint dynstr_shndx = insert_shdr(shdrsStart, shdr);
             if (dynstr_shndx == ElfConstants.SHN_UNDEF)
             {
@@ -942,7 +942,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Flags = ElfConstants.SHF_ALLOC;
                 shdr.Addr = (ulong)EhInfoHdrAddr;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = (ulong)EhInfoHdrSize;
+                shdr.Size = (ulong)ehInfoHdrSize;
                 shdr.AddrAlign = 4;
                 if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
                 {
@@ -1049,7 +1049,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
                 currentOffset -= 1;
             }
-            return 0;
+            return -1;
         }
 
         private static int ELF64_ST_BIND(int info) => ((info) >> 4);

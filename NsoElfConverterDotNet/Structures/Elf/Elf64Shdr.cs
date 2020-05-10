@@ -54,7 +54,7 @@ namespace NsoElfConverterDotNet.Structures.Elf
             BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Offset); index += 8;
             BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Size); index += 8;
             BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Link); index += 4;
-            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Info); index += 8;
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Info); index += 4;
             BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), AddrAlign); index += 8;
             BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), EntSize); index += 8;
         }
