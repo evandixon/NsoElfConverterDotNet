@@ -42,12 +42,12 @@ namespace NsoElfConverterDotNet.Nx2elf
             }
 
             var modPtr = new ModPointer(Image);
-            var modBaseRaw = (int)modPtr.magic_offset;
+            var modBaseRaw = (int)modPtr.MaskOffset;
             var modBase = Image.AsSpan().Slice(modBaseRaw);
             var mod = new ModHeader(modBase);
 
             DynInfo = new DynInfoData();
-            DynOffset = modBaseRaw + mod.dynamic_offset;
+            DynOffset = modBaseRaw + mod.DynamicOffset;
             var dynamic = new Elf64Dyn(Image.AsSpan().Slice(DynOffset));
             var dynamicIndex = 0;
             while (dynamic.Tag != default)
@@ -55,52 +55,52 @@ namespace NsoElfConverterDotNet.Nx2elf
                 switch (dynamic.Tag)
                 {
                     case ElfConstants.DT_SYMTAB:
-                        DynInfo.symtab = dynamic.Un;
+                        DynInfo.SymTab = dynamic.Un;
                         break;
                     case ElfConstants.DT_RELA:
-                        DynInfo.rela = dynamic.Un;
+                        DynInfo.Rela = dynamic.Un;
                         break;
                     case ElfConstants.DT_RELASZ:
-                        DynInfo.relasz = dynamic.Un;
+                        DynInfo.RelaSize = dynamic.Un;
                         break;
                     case ElfConstants.DT_JMPREL:
-                        DynInfo.jmprel = dynamic.Un;
+                        DynInfo.JumpRel = dynamic.Un;
                         break;
                     case ElfConstants.DT_PLTRELSZ:
-                        DynInfo.pltrelsz = dynamic.Un;
+                        DynInfo.PltRelSize = dynamic.Un;
                         break;
                     case ElfConstants.DT_STRTAB:
-                        DynInfo.strtab = dynamic.Un;
+                        DynInfo.StrTab = dynamic.Un;
                         break;
                     case ElfConstants.DT_STRSZ:
-                        DynInfo.strsz = dynamic.Un;
+                        DynInfo.StrSize = dynamic.Un;
                         break;
                     case ElfConstants.DT_PLTGOT:
-                        DynInfo.pltgot = dynamic.Un;
+                        DynInfo.PltGot = dynamic.Un;
                         break;
                     case ElfConstants.DT_HASH:
-                        DynInfo.hash = dynamic.Un;
+                        DynInfo.Hash = dynamic.Un;
                         break;
                     case ElfConstants.DT_GNU_HASH:
-                        DynInfo.gnu_hash = dynamic.Un;
+                        DynInfo.GnuHash = dynamic.Un;
                         break;
                     case ElfConstants.DT_INIT:
-                        DynInfo.init = dynamic.Un;
+                        DynInfo.Init = dynamic.Un;
                         break;
                     case ElfConstants.DT_FINI:
-                        DynInfo.fini = dynamic.Un;
+                        DynInfo.Fini = dynamic.Un;
                         break;
                     case ElfConstants.DT_INIT_ARRAY:
-                        DynInfo.init_array = dynamic.Un;
+                        DynInfo.InitArray = dynamic.Un;
                         break;
                     case ElfConstants.DT_INIT_ARRAYSZ:
-                        DynInfo.init_arraysz = dynamic.Un;
+                        DynInfo.InitArraySize = dynamic.Un;
                         break;
                     case ElfConstants.DT_FINI_ARRAY:
-                        DynInfo.fini_array = dynamic.Un;
+                        DynInfo.FiniArray = dynamic.Un;
                         break;
                     case ElfConstants.DT_FINI_ARRAYSZ:
-                        DynInfo.fini_arraysz = dynamic.Un;
+                        DynInfo.FiniArraySize = dynamic.Un;
                         break;
                 }
 
@@ -111,7 +111,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             // Resolve Plt
             var textSegment = Header.Segments[(int)NsoSegmentType.Text];
             var textSegmentData = Image.AsSpan().Slice((int)textSegment.MemoryOffset, (int)textSegment.MemorySize);
-            if (DynInfo.pltrelsz != default)
+            if (DynInfo.PltRelSize != default)
             {
                 var pltPattern = new byte[]
                 {
@@ -136,12 +136,12 @@ namespace NsoElfConverterDotNet.Nx2elf
                     0xff, 0xff, 0xff, 0xff,
                     0xff, 0xff, 0xff, 0xff
                 };
-                var found = memmem_m(textSegmentData, textSegmentData.Length, pltPattern, pltMask, pltPattern.Length);
+                var found = MemoryLocateWithMask(textSegmentData, textSegmentData.Length, pltPattern, pltMask, pltPattern.Length);
                 if (found > -1)
                 {
                     PltInfoAddr = (ulong)found + textSegment.MemoryOffset;
                     // Assume the plt exactly matches .rela.plt
-                    var pltEntryCount = DynInfo.pltrelsz / Elf64Rela.Length;
+                    var pltEntryCount = DynInfo.PltRelSize / Elf64Rela.Length;
                     const int pltEntrySize = 16;
                     PltInfoSize = pltEntrySize * 2 + pltEntrySize * pltEntryCount;
                 }
@@ -157,10 +157,10 @@ namespace NsoElfConverterDotNet.Nx2elf
             {
                 var segment = Header.Segments[(int)segmentType];
                 var segmentData = Image.AsSpan().Slice((int)segment.MemoryOffset, (int)segment.MemorySize);
-                var noteOffset = memmemr(segmentData, segmentData.Length, md5BuildIdNeedle, md5BuildIdNeedle.Length);
+                var noteOffset = MemoryLocateReverse(segmentData, segmentData.Length, md5BuildIdNeedle, md5BuildIdNeedle.Length);
                 if (noteOffset == -1)
                 {
-                    noteOffset = memmemr(segmentData, segmentData.Length, sha1BuildIdNeedle, sha1BuildIdNeedle.Length);
+                    noteOffset = MemoryLocateReverse(segmentData, segmentData.Length, sha1BuildIdNeedle, sha1BuildIdNeedle.Length);
                 }
 
                 if (noteOffset != -1)
@@ -170,13 +170,13 @@ namespace NsoElfConverterDotNet.Nx2elf
                 }
             }
 
-            int mod_get_offset(int modBaseRaw, int relative_offset)
+            static int mod_get_offset(int modBaseRaw, int relative_offset)
             {
                 return modBaseRaw + relative_offset;
             };
 
-            EhInfoHdrAddr = mod_get_offset(modBaseRaw, (int)mod.eh_start_offset);
-            EhInfoHdrSize = mod_get_offset(modBaseRaw, (int)mod.eh_end_offset) - EhInfoHdrAddr;
+            EhInfoHdrAddr = mod_get_offset(modBaseRaw, (int)mod.EhStartOffset);
+            EhInfoHdrSize = mod_get_offset(modBaseRaw, (int)mod.EhEndOffset) - EhInfoHdrAddr;
         }
 
         public NsoHeader Header { get; }
@@ -195,7 +195,7 @@ namespace NsoElfConverterDotNet.Nx2elf
         {
             for (uint i = 0; i < Header.DynSym.Size / Elf64Sym.Length; i++)
             {
-                var sym = new Elf64Sym(Image.AsSpan().Slice((int)DynInfo.symtab + Elf64Sym.Length * (int)i));
+                var sym = new Elf64Sym(Image.AsSpan().Slice((int)DynInfo.SymTab + Elf64Sym.Length * (int)i));
                 action(sym, i);
             }
         }
@@ -363,42 +363,42 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             ALLOC_SHDR_IF(PltInfoAddr != 0, ref present_plt);
             var jumpSlotAddrEnd = 0;
-            if (DynInfo.jmprel != 0)
+            if (DynInfo.JumpRel != 0)
             {
-                for (ulong i = 0; i < DynInfo.pltrelsz / Elf64Rela.Length; i++)
+                for (ulong i = 0; i < DynInfo.PltRelSize / Elf64Rela.Length; i++)
                 {
-                    var rela = new Elf64Rela(Image.AsSpan().Slice((int)(DynInfo.jmprel + i * Elf64Rela.Length)));
+                    var rela = new Elf64Rela(Image.AsSpan().Slice((int)(DynInfo.JumpRel + i * Elf64Rela.Length)));
                     if ((uint)rela.Info == ElfConstants.R_AARCH64_JUMP_SLOT)
                     {
                         jumpSlotAddrEnd = Math.Max(jumpSlotAddrEnd, (int)(rela.Offset + 8));
                     }
                 }
             }
-            ALLOC_SHDR_IF(jumpSlotAddrEnd != 0 && DynInfo.pltgot != 0, ref present_got_plt);
+            ALLOC_SHDR_IF(jumpSlotAddrEnd != 0 && DynInfo.PltGot != 0, ref present_got_plt);
 
             var gotAddr = 0;
             if (jumpSlotAddrEnd != 0)
             {
                 var gotDynamicPtr = BitConverter.GetBytes((ulong)DynOffset);
-                var found = memmem(Image.AsSpan().Slice(jumpSlotAddrEnd), Image.Length - jumpSlotAddrEnd, gotDynamicPtr, gotDynamicPtr.Length);
+                var found = MemoryLocate(Image.AsSpan().Slice(jumpSlotAddrEnd), Image.Length - jumpSlotAddrEnd, gotDynamicPtr, gotDynamicPtr.Length);
                 if (found > -1)
                 {
                     gotAddr = found + jumpSlotAddrEnd;
                 }
             }
 
-            ALLOC_SHDR_IF(gotAddr != 0 && DynInfo.rela != 0, ref present_got);
-            ALLOC_SHDR_IF(present_got_plt && DynInfo.jmprel != 0 && DynInfo.pltrelsz != 0, ref present_rela_plt);
-            ALLOC_SHDR_IF(DynInfo.hash != 0, ref present_hash);
-            ALLOC_SHDR_IF(DynInfo.gnu_hash != 0, ref present_gnu_hash);
-            ALLOC_SHDR_IF(DynInfo.init_array != 0 && DynInfo.init_arraysz != 0, ref present_init_array);
-            ALLOC_SHDR_IF(DynInfo.fini_array != 0 && DynInfo.fini_arraysz != 0, ref present_fini_array);
+            ALLOC_SHDR_IF(gotAddr != 0 && DynInfo.Rela != 0, ref present_got);
+            ALLOC_SHDR_IF(present_got_plt && DynInfo.JumpRel != 0 && DynInfo.PltRelSize != 0, ref present_rela_plt);
+            ALLOC_SHDR_IF(DynInfo.Hash != 0, ref present_hash);
+            ALLOC_SHDR_IF(DynInfo.GnuHash != 0, ref present_gnu_hash);
+            ALLOC_SHDR_IF(DynInfo.InitArray != 0 && DynInfo.InitArraySize != 0, ref present_init_array);
+            ALLOC_SHDR_IF(DynInfo.FiniArray != 0 && DynInfo.FiniArraySize != 0, ref present_fini_array);
             ALLOC_SHDR_IF(Note.HasValue, ref present_note);
 
             var initRetOffset = 0;
-            if (DynInfo.init != 0)
+            if (DynInfo.Init != 0)
             {
-                var initPtr = Image.AsSpan().Slice((int)DynInfo.init);
+                var initPtr = Image.AsSpan().Slice((int)DynInfo.Init);
                 for (int i = 0; /* no max */ ; i++)
                 {
                     if (BinaryPrimitives.ReadUInt32LittleEndian(initPtr.Slice(i * 4)) == 0xd65f03c0ul)
@@ -411,9 +411,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             }
 
             var finiBranchOffset = 0;
-            if (DynInfo.fini != 0)
+            if (DynInfo.Fini != 0)
             {
-                var finiPtr = Image.AsSpan().Slice((int)DynInfo.fini);
+                var finiPtr = Image.AsSpan().Slice((int)DynInfo.Fini);
                 for (int i = 0; i < 0x20; i++)
                 {
                     if ((BinaryPrimitives.ReadUInt32LittleEndian(finiPtr.Slice(i * 4)) & 0xff000000ul) == 0x14000000ul)
@@ -425,10 +425,8 @@ namespace NsoElfConverterDotNet.Nx2elf
                 ALLOC_SHDR_IF(finiBranchOffset != 0, ref present_fini);
             }
 
-            uint ehInfoFrameAddr = 0;
-            uint ehInfoFrameSize = 0;
             uint ehInfoHdrSize = 0;
-            if (ElfEHInfo.MeasureFrame(Image, EhInfoHdrAddr, out ehInfoFrameAddr, out ehInfoFrameSize))
+            if (ElfEHInfo.MeasureFrame(Image, EhInfoHdrAddr, out uint ehInfoFrameAddr, out uint ehInfoFrameSize))
             {
                 // XXX the alignment of sizes is a fudge...
                 ehInfoHdrSize = (uint)ALIGN_UP(this.EhInfoHdrSize, 0x10);
@@ -645,7 +643,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Name = shstrtab.GetOffset(".init");
                 shdr.Type = ElfConstants.SHT_PROGBITS;
                 shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_EXECINSTR;
-                shdr.Addr = DynInfo.init;
+                shdr.Addr = DynInfo.Init;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
                 shdr.Size = (ulong)initRetOffset;
                 shdr.AddrAlign = 4;
@@ -661,7 +659,7 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Name = shstrtab.GetOffset(".fini");
                 shdr.Type = ElfConstants.SHT_PROGBITS;
                 shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_EXECINSTR;
-                shdr.Addr = DynInfo.fini;
+                shdr.Addr = DynInfo.Fini;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
                 shdr.Size = (ulong)finiBranchOffset;
                 shdr.AddrAlign = 4;
@@ -730,9 +728,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             shdr.Name = shstrtab.GetOffset(".rela.dyn");
             shdr.Type = ElfConstants.SHT_RELA;
             shdr.Flags = ElfConstants.SHF_ALLOC;
-            shdr.Addr = DynInfo.rela;
+            shdr.Addr = DynInfo.Rela;
             shdr.Offset = vaddr_to_foffset(shdr.Addr);
-            shdr.Size = DynInfo.relasz;
+            shdr.Size = DynInfo.RelaSize;
             shdr.Link = dynsym_shndx;
             shdr.AddrAlign = 8;
             shdr.EntSize = Elf64Rela.Length;
@@ -763,9 +761,9 @@ namespace NsoElfConverterDotNet.Nx2elf
             if (present_got)
             {
                 ulong glob_dat_end = (ulong)gotAddr;
-                for (ulong i = 0; i < (DynInfo.relasz / Elf64Rela.Length); i++)
+                for (ulong i = 0; i < (DynInfo.RelaSize / Elf64Rela.Length); i++)
                 {
-                    var rela = new Elf64Rela(Image.AsSpan().Slice((int)(DynInfo.rela + i * Elf64Rela.Length)));
+                    var rela = new Elf64Rela(Image.AsSpan().Slice((int)(DynInfo.Rela + i * Elf64Rela.Length)));
                     if ((uint)(rela.Info) == ElfConstants.R_AARCH64_GLOB_DAT)
                     {
                         glob_dat_end = Math.Max(glob_dat_end, rela.Offset + 8);
@@ -792,9 +790,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Name = shstrtab.GetOffset(".got.plt");
                 shdr.Type = ElfConstants.SHT_PROGBITS;
                 shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_WRITE;
-                shdr.Addr = DynInfo.pltgot;
+                shdr.Addr = DynInfo.PltGot;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = (ulong)jumpSlotAddrEnd - DynInfo.pltgot;
+                shdr.Size = (ulong)jumpSlotAddrEnd - DynInfo.PltGot;
                 shdr.AddrAlign = 8;
                 shdr.EntSize = 8;
                 if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
@@ -817,9 +815,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                 {
                     shdr.Flags |= ElfConstants.SHF_INFO_LINK;
                 }
-                shdr.Addr = DynInfo.jmprel;
+                shdr.Addr = DynInfo.JumpRel;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = DynInfo.pltrelsz;
+                shdr.Size = DynInfo.PltRelSize;
                 shdr.Link = dynsym_shndx;
                 shdr.Info = plt_shndx;
                 shdr.AddrAlign = 8;
@@ -836,9 +834,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Name = shstrtab.GetOffset(".init_array");
                 shdr.Type = ElfConstants.SHT_INIT_ARRAY;
                 shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_WRITE;
-                shdr.Addr = DynInfo.init_array;
+                shdr.Addr = DynInfo.InitArray;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = DynInfo.init_arraysz;
+                shdr.Size = DynInfo.InitArraySize;
                 shdr.AddrAlign = 8;
                 if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
                 {
@@ -852,9 +850,9 @@ namespace NsoElfConverterDotNet.Nx2elf
                 shdr.Name = shstrtab.GetOffset(".fini_array");
                 shdr.Type = ElfConstants.SHT_FINI_ARRAY;
                 shdr.Flags = ElfConstants.SHF_ALLOC | ElfConstants.SHF_WRITE;
-                shdr.Addr = DynInfo.fini_array;
+                shdr.Addr = DynInfo.FiniArray;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = DynInfo.fini_arraysz;
+                shdr.Size = DynInfo.FiniArraySize;
                 shdr.AddrAlign = 8;
                 if (insert_shdr(shdrsStart, shdr, true) == ElfConstants.SHN_UNDEF)
                 {
@@ -864,14 +862,14 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             if (present_hash)
             {
-                var hash = new DynInfoHash(Image.AsSpan().Slice((int)DynInfo.hash));
+                var hash = new DynInfoHash(Image.AsSpan().Slice((int)DynInfo.Hash));
                 shdr = new Elf64Shdr();
                 shdr.Name = shstrtab.GetOffset(".hash");
                 shdr.Type = ElfConstants.SHT_HASH;
                 shdr.Flags = ElfConstants.SHF_ALLOC;
-                shdr.Addr = DynInfo.hash;
+                shdr.Addr = DynInfo.Hash;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
-                shdr.Size = (ulong)(DynInfoHash.Length + hash.nbucket * 4 + hash.nchain * 4);
+                shdr.Size = (ulong)(DynInfoHash.Length + hash.Bucket * 4 + hash.Chain * 4);
                 shdr.Link = dynsym_shndx;
                 shdr.AddrAlign = 8;
                 shdr.EntSize = 4;
@@ -883,17 +881,17 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             if (present_gnu_hash)
             {
-                var gnu_hash = new GnuHash(Image.AsSpan().Slice((int)DynInfo.gnu_hash));
+                var gnu_hash = new GnuHash(Image.AsSpan().Slice((int)DynInfo.GnuHash));
                 uint gnu_hash_len = GnuHash.Length;
-                gnu_hash_len += gnu_hash.maskwords * 8;
-                gnu_hash_len += gnu_hash.nbuckets * 4;
+                gnu_hash_len += gnu_hash.MaskWords * 8;
+                gnu_hash_len += gnu_hash.BucketCount * 4;
                 ulong dynsymcount = Header.DynSym.Size / Elf64Sym.Length;
-                gnu_hash_len += (uint)((dynsymcount - gnu_hash.symndx) * 4);
+                gnu_hash_len += (uint)((dynsymcount - gnu_hash.SymIndex) * 4);
                 shdr = new Elf64Shdr();
                 shdr.Name = shstrtab.GetOffset(".gnu.hash");
                 shdr.Type = ElfConstants.SHT_GNU_HASH;
                 shdr.Flags = ElfConstants.SHF_ALLOC;
-                shdr.Addr = DynInfo.gnu_hash;
+                shdr.Addr = DynInfo.GnuHash;
                 shdr.Offset = vaddr_to_foffset(shdr.Addr);
                 shdr.Size = gnu_hash_len;
                 shdr.Link = dynsym_shndx;
@@ -965,7 +963,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             return elf;
         }
 
-        private static int memcmp_m(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> mask, int length)
+        private static int MemoryCompareWithMask(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> mask, int length)
         {
             var x = 0;
             while (length-- > 0 && x == 0)
@@ -978,7 +976,7 @@ namespace NsoElfConverterDotNet.Nx2elf
             return x;
         }
 
-        private static int memcmp(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, int length)
+        private static int MemoryCompare(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, int length)
         {
             var x = 0;
             while (length-- > 0 && x == 0)
@@ -990,14 +988,14 @@ namespace NsoElfConverterDotNet.Nx2elf
             return x;
         }
 
-        private static int memmem_m(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, ReadOnlySpan<byte> mask, int needleLength)
+        private static int MemoryLocateWithMask(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, ReadOnlySpan<byte> mask, int needleLength)
         {
             var currentOffset = 0;
             var maxOffset = haystackLength - needleLength;
             while (currentOffset <= maxOffset)
             {
                 var p = haystack.Slice(currentOffset);
-                if (memcmp_m(p, needle, mask, needleLength) == 0)
+                if (MemoryCompareWithMask(p, needle, mask, needleLength) == 0)
                 {
                     return currentOffset;
                 }
@@ -1006,31 +1004,30 @@ namespace NsoElfConverterDotNet.Nx2elf
             return -1;
         }
 
-        private static int memmem(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
+        private static int MemoryLocate(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
         {
-            var p = haystack;
             var currentOffset = 0;
             var maxOffset = haystackLength - needleLength;
             while (currentOffset <= maxOffset)
             {
-                if (memcmp(p, needle, needleLength) == 0)
+                var p = haystack.Slice(currentOffset);
+                if (MemoryCompare(p, needle, needleLength) == 0)
                 {
                     return currentOffset;
                 }
                 currentOffset += 1;
-                p = p.Slice(1);
             }
             return -1;
         }
 
-        private static int memmemr(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
+        private static int MemoryLocateReverse(ReadOnlySpan<byte> haystack, int haystackLength, ReadOnlySpan<byte> needle, int needleLength)
         {
             var currentOffset = haystackLength - needleLength;
             var minOffset = 0;
             while (currentOffset >= minOffset)
             {
                 var p = haystack.Slice(currentOffset);
-                if (memcmp(p, needle, needleLength) == 0)
+                if (MemoryCompare(p, needle, needleLength) == 0)
                 {
                     return currentOffset;
                 }
@@ -1101,58 +1098,58 @@ namespace NsoElfConverterDotNet.Nx2elf
         {
             public ModPointer(ReadOnlySpan<byte> data)
             {
-                field_0 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(0, 4));
-                magic_offset = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4));
+                Field0 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(0, 4));
+                MaskOffset = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4, 4));
             }
 
-            public uint field_0 { get; }
-            public uint magic_offset { get; }
+            public uint Field0 { get; }
+            public uint MaskOffset { get; }
         }
 
         private struct ModHeader
         {
             public ModHeader(ReadOnlySpan<byte> data)
             {
-                magic = data.Slice(0, 4).ToArray();
-                dynamic_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(4, 4));
-                bss_start_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(8, 4));
-                bss_end_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(12, 4));
-                eh_start_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(16, 4));
-                eh_end_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(20, 4));
-                module_object_offset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(24, 4));
+                Magic = data.Slice(0, 4).ToArray();
+                DynamicOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(4, 4));
+                BssStartOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(8, 4));
+                BssEndOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(12, 4));
+                EhStartOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(16, 4));
+                EhEndOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(20, 4));
+                ModuleObjectOffset = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(24, 4));
             }
 
             // yaya, there are some fields here...for parsing, easier to ignore.
             //ModPointer mod_ptr;
-            public byte[] magic { get; }
-            public int dynamic_offset { get; }
-            public int bss_start_offset { get; }
-            public int bss_end_offset { get; }
-            public int eh_start_offset { get; }
-            public int eh_end_offset { get; }
-            public int module_object_offset { get; }
+            public byte[] Magic { get; }
+            public int DynamicOffset { get; }
+            public int BssStartOffset { get; }
+            public int BssEndOffset { get; }
+            public int EhStartOffset { get; }
+            public int EhEndOffset { get; }
+            public int ModuleObjectOffset { get; }
             // It seems the area around MOD0 is used for .note section
             // There is also a nss-name section
         };
 
         private class DynInfoData
         {
-            public ulong symtab { get; set; }
-            public ulong rela { get; set; }
-            public ulong relasz { get; set; }
-            public ulong jmprel { get; set; }
-            public ulong pltrelsz { get; set; }
-            public ulong strtab { get; set; }
-            public ulong strsz { get; set; }
-            public ulong pltgot { get; set; }
-            public ulong hash { get; set; }
-            public ulong gnu_hash { get; set; }
-            public ulong init { get; set; }
-            public ulong fini { get; set; }
-            public ulong init_array { get; set; }
-            public ulong init_arraysz { get; set; }
-            public ulong fini_array { get; set; }
-            public ulong fini_arraysz { get; set; }
+            public ulong SymTab { get; set; }
+            public ulong Rela { get; set; }
+            public ulong RelaSize { get; set; }
+            public ulong JumpRel { get; set; }
+            public ulong PltRelSize { get; set; }
+            public ulong StrTab { get; set; }
+            public ulong StrSize { get; set; }
+            public ulong PltGot { get; set; }
+            public ulong Hash { get; set; }
+            public ulong GnuHash { get; set; }
+            public ulong Init { get; set; }
+            public ulong Fini { get; set; }
+            public ulong InitArray { get; set; }
+            public ulong InitArraySize { get; set; }
+            public ulong FiniArray { get; set; }
+            public ulong FiniArraySize { get; set; }
         }
 
         private struct DynInfoHash
@@ -1161,11 +1158,11 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             public DynInfoHash(ReadOnlySpan<byte> data)
             {
-                nbucket = BinaryPrimitives.ReadInt32LittleEndian(data);
-                nchain = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(4));
+                Bucket = BinaryPrimitives.ReadInt32LittleEndian(data);
+                Chain = BinaryPrimitives.ReadInt32LittleEndian(data.Slice(4));
             }
-            public int nbucket { get; set; }
-            public int nchain { get; set; }
+            public int Bucket { get; set; }
+            public int Chain { get; set; }
         }
 
         private struct GnuHash
@@ -1174,16 +1171,16 @@ namespace NsoElfConverterDotNet.Nx2elf
 
             public GnuHash(ReadOnlySpan<byte> data)
             {
-                nbuckets = BinaryPrimitives.ReadUInt32LittleEndian(data);
-                symndx = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4));
-                maskwords = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(8));
-                shift2 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(12));
+                BucketCount = BinaryPrimitives.ReadUInt32LittleEndian(data);
+                SymIndex = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(4));
+                MaskWords = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(8));
+                Shift2 = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(12));
             }
 
-            public uint nbuckets { get; set; }
-            public uint symndx { get; set; }
-            public uint maskwords { get; set; }
-            public uint shift2 { get; set; }
+            public uint BucketCount { get; set; }
+            public uint SymIndex { get; set; }
+            public uint MaskWords { get; set; }
+            public uint Shift2 { get; set; }
         }
     }
 }
