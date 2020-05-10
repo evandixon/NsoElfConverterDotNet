@@ -27,5 +27,5 @@ dotnet NsoElfConverterDotNet.dll <main.elf> <main>
 
 ## Credits
 
-- [shuffle2](https://github.com/shuffle2) for [nx2elf](https://github.com/shuffle2/nx2elf), which [I forked](https://github.com/evandixon/nx2elf) and bundled
+- [shuffle2](https://github.com/shuffle2) for [nx2elf](https://github.com/shuffle2/nx2elf), which I ported to C#
 - [switchbrew](https://github.com/switchbrew) for [switch-tools](https://github.com/switchbrew/switch-tools), parts of which I ported to C#

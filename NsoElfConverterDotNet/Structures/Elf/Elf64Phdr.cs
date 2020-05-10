@@ -1,9 +1,7 @@
-﻿using SkyEditor.IO.Binary;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System;
+using System.Buffers.Binary;
 
-namespace NsoElfConverterDotNet.Elf2Nso
+namespace NsoElfConverterDotNet.Structures.Elf
 {
     // Copyright (c) 1996-1998 John D. Polstra.
     // All rights reserved.
@@ -38,17 +36,34 @@ namespace NsoElfConverterDotNet.Elf2Nso
     {
         public const int Length = 56;
 
-        public Elf64Phdr(IReadOnlyBinaryDataAccessor data)
+        public Elf64Phdr()
+        {
+        }
+
+        public Elf64Phdr(ReadOnlySpan<byte> data)
         {
             var index = 0;
-            Type = data.ReadUInt32(index); index += 4;
-            Flags = data.ReadUInt32(index); index += 4;
-            Offset = data.ReadUInt64(index); index += 8;
-            VAddr = data.ReadUInt64(index); index += 8;
-            PAddr = data.ReadUInt64(index); index += 8;
-            FileSize = data.ReadUInt64(index); index += 8;
-            MemSize = data.ReadUInt64(index); index += 8;
-            Align = data.ReadUInt64(index); index += 8;
+            Type = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            Flags = BinaryPrimitives.ReadUInt32LittleEndian(data.Slice(index)); index += 4;
+            Offset = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            VAddr = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            PAddr = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            FileSize = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            MemSize = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+            Align = BinaryPrimitives.ReadUInt64LittleEndian(data.Slice(index)); index += 8;
+        }
+
+        public void Write(Span<byte> data)
+        {
+            var index = 0;
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Type); index += 4;
+            BinaryPrimitives.WriteUInt32LittleEndian(data.Slice(index), Flags); index += 4;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Offset); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), VAddr); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), PAddr); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), FileSize); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), MemSize); index += 8;
+            BinaryPrimitives.WriteUInt64LittleEndian(data.Slice(index), Align); index += 8;
         }
 
         /// <summary>

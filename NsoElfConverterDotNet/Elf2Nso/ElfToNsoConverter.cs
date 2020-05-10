@@ -1,5 +1,6 @@
 ﻿using K4os.Compression.LZ4;
-using SkyEditor.IO.Binary;
+using NsoElfConverterDotNet.Structures;
+using NsoElfConverterDotNet.Structures.Elf;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
 {
     internal static class ElfToNsoConverter
     {
-        public static byte[] ConvertElfToNso(IReadOnlyBinaryDataAccessor elf)
+        public static byte[] ConvertElfToNso(ReadOnlySpan<byte> elf)
         {
             if (elf.Length < Elf64Ehdr.Length)
             {
@@ -41,7 +42,7 @@ namespace NsoElfConverterDotNet.Elf2Nso
                 while (j < header.PHNum)
                 {
                     var phOffset = (long)header.PhOff + j++ * Elf64Phdr.Length;
-                    var current = new Elf64Phdr(elf.Slice(phOffset, header.PHEntSize));
+                    var current = new Elf64Phdr(elf.Slice((int)phOffset, header.PHEntSize));
                     if (current.Type == ElfConstants.PT_LOAD)
                     {
                         phdr = current;
@@ -54,9 +55,9 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     throw new ArgumentException("Invalid ELF: expected 3 loadable phdrs", nameof(elf));
                 }
 
-                nsoHeader.Segments[i].FileOff = fileOffset;
-                nsoHeader.Segments[i].DstOff = (uint)phdr.VAddr;
-                nsoHeader.Segments[i].DecompSz = (uint)phdr.FileSize;
+                nsoHeader.Segments[i].FileOffset = fileOffset;
+                nsoHeader.Segments[i].MemoryOffset = (uint)phdr.VAddr;
+                nsoHeader.Segments[i].MemorySize = (uint)phdr.FileSize;
 
                 // for .data segment this field contains bss size
                 if (i == 2)
@@ -68,13 +69,13 @@ namespace NsoElfConverterDotNet.Elf2Nso
                     nsoHeader.Segments[i].AlignOrTotalSz = 1;
                 }
 
-                var sectionData = elf.ReadSpan((long)phdr.Offset, (int)phdr.FileSize);
+                var sectionData = elf.Slice((int)phdr.Offset, (int)phdr.FileSize);
                 nsoHeader.Hashes[i] = sha256.ComputeHash(sectionData.ToArray());
 
                 var compressedBuffer = new byte[LZ4Codec.MaximumOutputSize(sectionData.Length)];
                 var compressedLength = LZ4Codec.Encode(sectionData, compressedBuffer, LZ4Level.L00_FAST);
                 compressedBuffers.Add(compressedBuffer);
-                nsoHeader.CompSz[i] = (uint)compressedLength;
+                nsoHeader.SegmentFileSizes[i] = (uint)compressedLength;
                 fileOffset += (uint)compressedLength;
             }
 
@@ -82,14 +83,14 @@ namespace NsoElfConverterDotNet.Elf2Nso
             var currentSectionHeaderOffset = header.ShOff;
             for (int i = 0; i < header.SHNum; i++)
             {
-                var currentShHeader = new Elf64Shdr(elf.Slice((long)currentSectionHeaderOffset, header.SHEntSize));
+                var currentShHeader = new Elf64Shdr(elf.Slice((int)currentSectionHeaderOffset, header.SHEntSize));
                 if (currentShHeader.Type == ElfConstants.SHT_NOTE)
                 {
-                    var noteData = elf.Slice((long)currentShHeader.Offset, ElfNote.Length);
-                    var noteHeader = new ElfNote(noteData);
-                    var noteName = elf.Slice((long)currentShHeader.Offset + ElfNote.Length, noteHeader.NameSize);
-                    var noteDesc = elf.Slice((long)currentShHeader.Offset + ElfNote.Length + noteHeader.NameSize, noteHeader.DescriptorSize);
-                    var noteNameString = noteName.ReadString(0, 4, Encoding.ASCII);
+                    var noteData = elf.Slice((int)currentShHeader.Offset, Elf64Nhdr.Length);
+                    var noteHeader = new Elf64Nhdr(noteData);
+                    var noteName = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length, (int)noteHeader.NameSize);
+                    var noteDesc = elf.Slice((int)currentShHeader.Offset + Elf64Nhdr.Length + (int)noteHeader.NameSize, (int)noteHeader.DescriptorSize);
+                    var noteNameString = Encoding.ASCII.GetString(noteName.Slice(0, 4).ToArray());
                     if (noteHeader.Type == ElfConstants.NT_GNU_BUILD_ID && noteHeader.NameSize == 4 && noteNameString == "GNU\0")
                     {
                         var buildIdSize = noteHeader.DescriptorSize;
@@ -97,98 +98,20 @@ namespace NsoElfConverterDotNet.Elf2Nso
                         {
                             buildIdSize = 0x20;
                         }
-                        Array.Copy(noteDesc.ReadArray(0, (int)buildIdSize), nsoHeader.BuildId, buildIdSize);
+                        noteDesc.Slice(0, (int)buildIdSize).CopyTo(nsoHeader.BuildId);
                     }
                 }
                 currentSectionHeaderOffset += header.SHEntSize;
             }
 
             var headerData = nsoHeader.ToByteArray();
-            var buffer = new List<byte>(headerData.Length + nsoHeader.CompSz.Cast<int>().Sum());
+            var buffer = new List<byte>(headerData.Length + nsoHeader.SegmentFileSizes.Cast<int>().Sum());
             buffer.AddRange(headerData);
-            for (int i = 0; i < nsoHeader.CompSz.Length; i++)
+            for (int i = 0; i < nsoHeader.SegmentFileSizes.Length; i++)
             {
-                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.CompSz[i]));
+                buffer.AddRange(compressedBuffers[i].Take((int)nsoHeader.SegmentFileSizes[i]));
             }
             return buffer.ToArray();
-        }
-
-        private struct NsoSegment
-        {
-            public uint FileOff { get; set; }
-            public uint DstOff { get; set; }
-            public uint DecompSz { get; set; }
-            public uint AlignOrTotalSz { get; set; }
-
-            public byte[] ToByteArray()
-            {
-                var buffer = new byte[0x10];
-                BitConverter.GetBytes(FileOff).CopyTo(buffer, 0);
-                BitConverter.GetBytes(DstOff).CopyTo(buffer, 4);
-                BitConverter.GetBytes(DecompSz).CopyTo(buffer, 8);
-                BitConverter.GetBytes(AlignOrTotalSz).CopyTo(buffer, 12);
-                return buffer;
-            }
-        }
-
-        private class NsoHeader
-        {
-            public const int Length = 0x10 + 0x30 + 0x20 + 12 + 0x24 + 16 + 3 * 0x20;
-
-            public NsoHeader()
-            {
-                Magic = Encoding.ASCII.GetBytes("NSO0");
-                Unk3 = 0x3f;
-                Segments = new NsoSegment[3];
-                BuildId = new byte[0x20];
-                CompSz = new uint[3];
-                Padding = new byte[0x24];
-
-                this.Hashes = new List<byte[]>
-                {
-                    new byte[0x20],
-                    new byte[0x20],
-                    new byte[0x20]
-                };
-            }
-
-            public byte[] ToByteArray()
-            {
-                var buffer = new List<byte>(Length);
-                buffer.AddRange(Magic);
-                buffer.AddRange(BitConverter.GetBytes(Unk1));
-                buffer.AddRange(BitConverter.GetBytes(Unk2));
-                buffer.AddRange(BitConverter.GetBytes(Unk3));
-                foreach (var segment in Segments)
-                {
-                    buffer.AddRange(segment.ToByteArray());
-                }
-                buffer.AddRange(BuildId);
-                foreach (var size in CompSz)
-                {
-                    buffer.AddRange(BitConverter.GetBytes(size));
-                }
-                buffer.AddRange(Padding);
-                buffer.AddRange(BitConverter.GetBytes(Unk4));
-                buffer.AddRange(BitConverter.GetBytes(Unk5));
-                foreach (var hash in Hashes)
-                {
-                    buffer.AddRange(hash);
-                }
-                return buffer.ToArray();
-            }
-
-            public byte[] Magic { get; } // Length: 4
-            public uint Unk1 { get; set; }
-            public uint Unk2 { get; set; }
-            public uint Unk3 { get; set; }
-            public NsoSegment[] Segments { get; set; } // Length: 3
-            public byte[] BuildId { get; set; } // Length: 0x20
-            public uint[] CompSz { get; set; } // Length: 3
-            public byte[] Padding { get; set; }
-            public ulong Unk4 { get; set; }
-            public ulong Unk5 { get; set; }
-            public IList<byte[]> Hashes { get; set; } // 3 sets of byte[] length 0x20
         }
     }
 }

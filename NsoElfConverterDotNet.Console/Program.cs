@@ -1,7 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace NsoElfConverterDotNet.ConsoleApp
 {
@@ -29,7 +27,7 @@ namespace NsoElfConverterDotNet.ConsoleApp
             if (!Path.GetExtension(args[0]).TrimStart('.').Equals("elf", StringComparison.OrdinalIgnoreCase))
             {
                 // NSO to ELF
-                converter.ConvertNsoToElf(args[0], args[1]);
+                File.WriteAllBytes(args[1], converter.ConvertNsoToElf(File.ReadAllBytes(args[0])));
             }
             else
             {
